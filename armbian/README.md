@@ -1,7 +1,7 @@
 # ROS2Mower
 autonomous ROS2 lawn mower
 
-Orange Pi Zero Plus H5 Setup:
+Orange Pi Zero Plus H5 Setup (http://www.orangepi.org/OrangePiZeroPlus):
 * git clone https://github.com/armbian/build.git armbian_build
 * cd armbian_build
 * git checkout sunxi-4.20 

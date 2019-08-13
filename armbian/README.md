@@ -19,7 +19,7 @@ Orange Pi Zero Plus H5 Setup (http://www.orangepi.org/OrangePiZeroPlus):
 * mkdir /data
 * edit /etc/fstab:
 * /dev/mmcblk0p2  none            swap    sw              0       0
-* /dev/mmcblk0p3 /data            ext4    defaults        0       0
+* /dev/mmcblk0p3 /data            ext4    defaults,exec   0       0
 * export TERM=vt100
 * armbian-config
 => change hostname

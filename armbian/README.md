@@ -29,8 +29,12 @@ Orange Pi Zero Plus H5 Setup (http://www.orangepi.org/OrangePiZeroPlus):
 => reboot
 * login via ssh
 * apt-get update && apt-get upgrade
-* apt-get install htop gpsd joe 
-=> install ROS2
+* apt-get install htop gpsd gpsd-clients joe sysbench minicom i2c-tools git
+* edit /etc/defaults/gpsd
+=> GPSD_OPTIONS="-n -b -r"
+=> DEVICES="/dev/ttyS1"
+* check gps with gpsmon
+* install ROS2:
 * https://index.ros.org/doc/ros2/Installation/Dashing/Linux-Install-Debians
 * sudo locale-gen en_US en_US.UTF-8
 * sudo update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
@@ -39,7 +43,12 @@ Orange Pi Zero Plus H5 Setup (http://www.orangepi.org/OrangePiZeroPlus):
 * curl -s https://raw.githubusercontent.com/ros/rosdistro/master/ros.asc | sudo apt-key add -
 * sudo sh -c 'echo "deb [arch=arm64] http://packages.ros.org/ros2/ubuntu `lsb_release -cs` main" > /etc/apt/sources.list.d/ros2-latest.list'
 * sudo apt update
-* sudo apt install ros-dashing-ros-base
+* apt-get install ros-dashing-ros-base ros-dashing-demo-nodes-cpp ros-dashing-demo-nodes-py ros-dashing-joy ros-dashing-nav2-dynamic-params ros-dashing-navigation2 ros-dashing-nav2-map-server ros-dashing-robot-state-publisher ros-dashing-ros2action ros-dashing-ros2bag ros-dashing-ros2component ros-dashing-ros2launch ros-dashing-ros2param ros-dashing-ros2service ros-dashing-ros2topic ros-dashing-vision-opencv
+* apt install python3-colcon-common-extensions
+
+
+
+
 
 
 

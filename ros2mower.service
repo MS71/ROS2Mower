@@ -1,0 +1,9 @@
+[Unit]
+Description=ROS2Mower
+
+[Service]
+Type=simple
+ExecStart=/data/ROS2Mower/ros2mower.sh start
+
+[Install]
+WantedBy=multi-user.target

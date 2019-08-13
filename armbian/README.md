@@ -6,8 +6,7 @@ Orange Pi Zero Plus H5 Setup (http://www.orangepi.org/OrangePiZeroPlus):
 * cd armbian_build_h5
 * git checkout sunxi-4.20 
 * ./compile.sh BOARD=orangepizeroplus2-h5 BRANCH=next BUILD_DESKTOP=no KERNEL_ONLY=no KERNEL_CONFIGURE=no RELEASE=bionic
-* => select board "orangepizeroplus2-h5"
-* => select release "bionic"
+
 
 Orange Pi Zero H3 Setup (http://www.orangepi.org/orangepizerolts/):
 * git clone https://github.com/armbian/build.git armbian_build_h3

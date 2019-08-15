@@ -158,7 +158,7 @@ void pm_loop()
      {
       uint32_t adc = analogRead(PIN_IN_U1);
       adc = (adc*2560)/1023;
-      adc *= UMULTIPLYER;
+      adc = (uint32_t)((float)adc * UMULTIPLYER);
       cli();
       u8TWIMem[TWI_MEM_U1+0] = (adc>>0)&0xff;
       u8TWIMem[TWI_MEM_U1+1] = (adc>>8)&0xff;
@@ -167,7 +167,7 @@ void pm_loop()
      {
       uint32_t adc = analogRead(PIN_IN_U2);
       adc = (adc*2560)/1023;
-      adc *= UMULTIPLYER;
+      adc = (uint32_t)((float)adc * UMULTIPLYER);
       cli();
       u8TWIMem[TWI_MEM_U2+0] = (adc>>0)&0xff;
       u8TWIMem[TWI_MEM_U2+1] = (adc>>8)&0xff;
@@ -176,16 +176,25 @@ void pm_loop()
      {
       uint32_t adc = analogRead(PIN_IN_U3);
       adc = (adc*2560)/1023;
-      adc *= UMULTIPLYER;
+      adc = (uint32_t)((float)adc * UMULTIPLYER);
       cli();
       u8TWIMem[TWI_MEM_U3+0] = (adc>>0)&0xff;
       u8TWIMem[TWI_MEM_U3+1] = (adc>>8)&0xff;
       sei();
      }
      {
+      uint32_t adc = analogRead(PIN_IN_U4);
+      adc = (adc*2560)/1023;
+      adc = (uint32_t)((float)adc * UMULTIPLYER);
+      cli();
+      u8TWIMem[TWI_MEM_U4+0] = (adc>>0)&0xff;
+      u8TWIMem[TWI_MEM_U4+1] = (adc>>8)&0xff;
+      sei();
+     }
+     {
       uint32_t adc = analogRead(ADC_CH_A0_A1_20x);
       adc = (adc*2560)/1023;
-      adc *= UMULTIPLYER;
+      adc = (uint32_t)((float)adc * UMULTIPLYER);
       cli();
       u8TWIMem[TWI_MEM_I1+0] = (adc>>0)&0xff;
       u8TWIMem[TWI_MEM_I1+1] = (adc>>8)&0xff;
@@ -194,7 +203,7 @@ void pm_loop()
      {
       uint32_t adc = analogRead(ADC_CH_A0_A3_20x);
       adc = (adc*2560)/1023;
-      adc *= UMULTIPLYER;
+      adc = (uint32_t)((float)adc * UMULTIPLYER);
       cli();
       u8TWIMem[TWI_MEM_I2+0] = (adc>>0)&0xff;
       u8TWIMem[TWI_MEM_I2+1] = (adc>>8)&0xff;
@@ -203,7 +212,7 @@ void pm_loop()
      {
       uint32_t adc = analogRead(ADC_CH_A1_A2_20x);
       adc = (adc*2560)/1023;
-      adc *= UMULTIPLYER;
+      adc = (uint32_t)((float)adc * UMULTIPLYER);
       cli();
       u8TWIMem[TWI_MEM_I3+0] = (adc>>0)&0xff;
       u8TWIMem[TWI_MEM_I3+1] = (adc>>8)&0xff;

@@ -34,16 +34,17 @@
 #define TWI_MEM_U3        (0x24)
 #define TWI_MEM_U4        (0x26)
 
-#define TWI_MEM_I1        (0x30)
-#define TWI_MEM_I2        (0x32)
-#define TWI_MEM_I3        (0x34)
+#define TWI_MEM_I1        (0x30) /* ISolar  */
+#define TWI_MEM_I2        (0x32) /* IOut    */
+#define TWI_MEM_I3        (0x34) /* ICharge */
 
 #define PIN_ON            8
 #define PIN_FON          10
 #define PIN_IN_PMSW      A7
 
 //((270.0+47.0)/47.0)
-#define UMULTIPLYER   (1.32*1247.0/0x175)
+//#define UMULTIPLYER   (1.32*1247.0/0x175)
+#define UMULTIPLYER     (9.781)
 
 #define PIN_IN_U1       A0  /* UBat    */
 #define PIN_IN_U2       A1  /* USolar  */

@@ -99,29 +99,31 @@ int main(int argc, char * argv[])
 
   while (rclcpp::ok()) {
 	  {
-		/* TWI_MEM_LOOPCNT */
 		uint8_t addr = TWI_MEM_LOOPCNT;
 		uint8_t data[4] = {0};
-		write(device, &addr, sizeof(addr));
-		if( read(device, &data, sizeof(data)) == sizeof(data) )
+		if( write(device, &addr, sizeof(addr)) == sizeof(addr) )
 		{
-		  msg_loopcnt.data = (data[0]<<0)|(data[1]<<8)|(data[2]<<16)|(data[3]<<24);
-		  RCLCPP_INFO(node->get_logger(), "UBat: %f",msg_loopcnt.data);
-		  pub_loopcnt->publish(msg_loopcnt);
+			if( read(device, &data, sizeof(data)) == sizeof(data) )
+			{
+			  msg_loopcnt.data = (data[0]<<0)|(data[1]<<8)|(data[2]<<16)|(data[3]<<24);
+			  RCLCPP_INFO(node->get_logger(), "LoopCnt: %d",msg_loopcnt.data);
+			  pub_loopcnt->publish(msg_loopcnt);
+			}
 		}
 	  }
 
 	  {
-		/* TWI_MEM_LOOPCNT */
 		uint8_t addr = TWI_MEM_U1;
 		uint8_t data[2] = {0};
-		write(device, &addr, sizeof(addr));
-		if( read(device, &data, sizeof(data)) == sizeof(data) )
+		if( write(device, &addr, sizeof(addr)) == sizeof(addr) )
 		{
-		  msg_ubat.data = (data[0]<<0)|(data[1]<<8);
-		  RCLCPP_INFO(node->get_logger(), "UBat: %f",msg_ubat.data);
-		  pub_ubat->publish(msg_ubat);
-		}
+			if( read(device, &data, sizeof(data)) == sizeof(data) )
+			{
+			  msg_ubat.data = (data[0]<<0)|(data[1]<<8);
+			  RCLCPP_INFO(node->get_logger(), "UBat: %f",msg_ubat.data);
+			  pub_ubat->publish(msg_ubat);
+			}
+		}			
 	  }
 
     rclcpp::spin_some(node);

@@ -3,15 +3,15 @@
 //
 void setup()
 {
-  pm_init();
+  pm_init(); 
   i2c_init();
 }
 
 //
 void loop()
-{
-  i2c_loop();
+{ 
   pm_loop();
+  i2c_loop(); 
 }
 
 // EOF

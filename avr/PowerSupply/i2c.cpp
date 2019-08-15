@@ -43,6 +43,10 @@
  functions implemented as macros
 ********************************************************************************/
 
+void usiTwiRxHandler( uint8_t idx, uint8_t data );
+uint8_t usiTwiTxHandler( );
+uint8_t u8TWIByteIdx = 0;
+
 #define SET_USI_TO_SEND_ACK( ) \
 { \
   /* prepare ACK */ \
@@ -116,6 +120,7 @@
        ( 0x0 << USICNT0 ); \
 }
 
+#if 0
 #define USI_RECEIVE_CALLBACK() \
 { \
     if (usi_onReceiverPtr) \
@@ -127,7 +132,6 @@
     } \
 }
 
-#if 0
 #define ONSTOP_USI_RECEIVE_CALLBACK() \
 { \
     if (USISR & ( 1 << USIPF )) \
@@ -146,14 +150,14 @@
 /********************************************************************************
  typedef's
 ********************************************************************************/
-typedef enum
+typedef enum 
 {
   USI_SLAVE_CHECK_ADDRESS                = 0x00,
   USI_SLAVE_SEND_DATA                    = 0x01,
   USI_SLAVE_REQUEST_REPLY_FROM_SEND_DATA = 0x02,
   USI_SLAVE_CHECK_REPLY_FROM_SEND_DATA   = 0x03,
   USI_SLAVE_REQUEST_DATA                 = 0x04,
-  USI_SLAVE_GET_DATA_AND_SEND_ACK        = 0x05
+  USI_SLAVE_GET_DATA_AND_SEND_ACK        = 0x05,
 } overflowState_t;
 
 /********************************************************************************
@@ -161,15 +165,11 @@ typedef enum
 ********************************************************************************/
 
 static volatile overflowState_t overflowState;
-static volatile uint16_t u8TWIByteIdx = 0;
 
 /********************************************************************************
                                 public functions
 ********************************************************************************/
 // initialise USI for TWI slave mode
-
-void usiTwiRxHandler( uint16_t idx, uint8_t data );
-uint8_t usiTwiTxHandler( uint16_t idx );
 
 void usiTwiSlaveInit()
 {
@@ -226,9 +226,13 @@ ISR( USI_START_VECTOR )
   // set default starting conditions for new TWI package
   overflowState = USI_SLAVE_CHECK_ADDRESS;
 
+    unsigned char tmpUSISR;                                         // Temporary variable to store volatile
+    tmpUSISR = USISR;                                               // Not necessary, but prevents warnings
+
   // set SDA as input
   DDR_USI &= ~( 1 << PORT_USI_SDA );
 
+#if 1
   // wait for SCL to go low to ensure the Start Condition has completed (the
   // start detector will hold SCL low ) - if a Stop Condition arises then leave
   // the interrupt to prevent waiting forever - don't use USISR to test for Stop
@@ -240,11 +244,9 @@ ISR( USI_START_VECTOR )
        // and SDA is low
        !( ( PIN_USI & ( 1 << PIN_USI_SDA ) ) )
   );
-
-
+  
   if ( !( PIN_USI & ( 1 << PIN_USI_SDA ) ) )
   {
-
     // a Stop Condition did not occur
 
     USICR =
@@ -278,7 +280,23 @@ ISR( USI_START_VECTOR )
          // no toggle clock-port pin
          ( 0 << USITC );
 
+    //overflowState = USI_SLAVE_IDLE;
   } // end if
+#else  
+    while ( (PIN_USI & (1<<PORT_USI_SCL)) & !(tmpUSISR & (1<<USIPF)) );   // Wait for SCL to go low to ensure the "Start Condition" has completed.
+    USICR =
+         // keep Start Condition Interrupt enabled to detect RESTART
+         ( 1 << USISIE ) |
+         // enable Overflow Interrupt
+         ( 1 << USIOIE ) |
+         // set USI in Two-wire mode, hold SCL low on USI Counter overflow
+         ( 1 << USIWM1 ) | ( 1 << USIWM0 ) |
+         // Shift Register Clock Source = External, positive edge
+         // 4-Bit Counter Source = external, both edges
+         ( 1 << USICS1 ) | ( 0 << USICS0 ) | ( 0 << USICLK ) |
+         // no toggle clock-port pin
+         ( 0 << USITC );
+#endif
 
   USISR =
        // clear interrupt flags - resetting the Start Condition Flag will
@@ -287,7 +305,6 @@ ISR( USI_START_VECTOR )
        ( 1 << USIPF ) |( 1 << USIDC ) |
        // set USI to sample 8 bits (count 16 external SCL pin toggles)
        ( 0x0 << USICNT0);
-
 
 } // end ISR( USI_START_VECTOR )
 
@@ -338,7 +355,7 @@ ISR( USI_OVERFLOW_VECTOR )
     // copy data from buffer to USIDR and set USI to shift byte
     // next USI_SLAVE_REQUEST_REPLY_FROM_SEND_DATA
     case USI_SLAVE_SEND_DATA:
-      USIDR = usiTwiTxHandler( u8TWIByteIdx++ );
+      USIDR = usiTwiTxHandler(/* u8TWIByteIdx++ */);
       overflowState = USI_SLAVE_REQUEST_REPLY_FROM_SEND_DATA;
       SET_USI_TO_SEND_DATA( );
       break;
@@ -365,7 +382,7 @@ ISR( USI_OVERFLOW_VECTOR )
       overflowState = USI_SLAVE_REQUEST_DATA;
       SET_USI_TO_SEND_ACK( );
       break;
-
+ 
   } // end switch
 
 } // end ISR( USI_OVERFLOW_VECTOR )
@@ -377,15 +394,31 @@ void i2c_init()
 
 void i2c_loop()
 {
-	
+#if 0
+	  cli();
+    if( (USISR & ( 1 << USIPF )) != 0 )
+    {
+      USISR |= ( 1 << USIPF );
+      overflowState = USI_SLAVE_IDLE;
+    }
+    sei();
+#endif    
+}
+
+uint8_t i2c_active()
+{
+  if( overflowState != USI_SLAVE_CHECK_ADDRESS )
+    return 1;
+
+  return 0;
 }
 
 /********************************************************************************
  I2C API Handler
 ********************************************************************************/
 static uint8_t  u8TWIReg = 0;
-uint8_t  u8TWIMem[TWI_MEMSIZE] = {0};
-void usiTwiRxHandler( uint16_t idx, uint8_t data )
+uint8_t u8TWIMem[TWI_MEMSIZE] = {0};
+void usiTwiRxHandler( uint8_t idx, uint8_t data )
 {
   if( idx == 0 )
   {
@@ -394,10 +427,10 @@ void usiTwiRxHandler( uint16_t idx, uint8_t data )
   else if( u8TWIReg < sizeof(u8TWIMem ))
   {    
     u8TWIMem[u8TWIReg++] = data;
-  }
+  }  
 }
 
-uint8_t usiTwiTxHandler( uint16_t idx )
+uint8_t usiTwiTxHandler( )
 {
   if( u8TWIReg < sizeof(u8TWIMem ))
   {
@@ -409,4 +442,3 @@ uint8_t usiTwiTxHandler( uint16_t idx )
 /********************************************************************************
  EOF
 ********************************************************************************/
-

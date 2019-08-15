@@ -3,13 +3,18 @@
 #include <avr/wdt.h>
 #include "config.h"
 
+#include "i2c.h"
+
 extern uint8_t u8TWIMem[];
 uint8_t pm_shdwn = 0;
-uint8_t pm_pwrup = 1;
+uint8_t pm_pwrup = 0;
+
+uint32_t pm_rtc = 0;
 
 // Watchdog Interrupt Service / is executed when watchdog timed out
 ISR(WDT_vect) 
 {
+#if 1
     uint16_t v;      
 
     v = (u8TWIMem[TWI_MEM_SHDWNCNT+0] | (u8TWIMem[TWI_MEM_SHDWNCNT+1]<<8));
@@ -35,6 +40,17 @@ ISR(WDT_vect)
       u8TWIMem[TWI_MEM_PWRUPCNT+0] = (v>>0)&0xff;
       u8TWIMem[TWI_MEM_PWRUPCNT+1] = (v>>8)&0xff;
     }
+
+    pm_rtc++;
+#endif    
+#if 1
+    v = (u8TWIMem[TWI_MEM_RTC+0] | (u8TWIMem[TWI_MEM_RTC+1]<<8) | (u8TWIMem[TWI_MEM_RTC+2]<<16) | (u8TWIMem[TWI_MEM_RTC+3]<<24));
+    v++;
+    u8TWIMem[TWI_MEM_RTC+0] = (pm_rtc>>0)&0xff;
+    u8TWIMem[TWI_MEM_RTC+1] = (pm_rtc>>8)&0xff;
+    u8TWIMem[TWI_MEM_RTC+2] = (pm_rtc>>16)&0xff;
+    u8TWIMem[TWI_MEM_RTC+3] = (pm_rtc>>24)&0xff;
+#endif
 }
 
 // 0=16ms, 1=32ms,2=64ms,3=128ms,4=250ms,5=500ms
@@ -86,8 +102,8 @@ void pm_init()
 {
   u8TWIMem[TWI_MEM_SHDWNCNT+0] = (DEF_SHUTDOWNDELAY>>0)&0xff;
   u8TWIMem[TWI_MEM_SHDWNCNT+1] = (DEF_SHUTDOWNDELAY>>8)&0xff;
-  u8TWIMem[TWI_MEM_PWRUPCNT+0] = 0x00;
-  u8TWIMem[TWI_MEM_PWRUPCNT+1] = 0x00;
+  u8TWIMem[TWI_MEM_PWRUPCNT+0] = (DEF_POWERUPDELAY>>0)&0xff;
+  u8TWIMem[TWI_MEM_PWRUPCNT+1] = (DEF_POWERUPDELAY>>8)&0xff;
   
   pinMode(PIN_ON,OUTPUT);
   digitalWrite(PIN_ON,LOW);
@@ -122,7 +138,7 @@ uint8_t pmsw()
     p = 2; 
   }
 
-  v = (v&0x3ff) | p<<14;
+  v = (v&0xfff) | p<<12;
   
   cli();
   u8TWIMem[TWI_MEM_PMSW+0] = (v>>0)&0xff;
@@ -135,6 +151,7 @@ uint8_t pmsw()
 void pm_loop()
 {    
     analogReference(INTERNAL2V56_NO_CAP);
+#if 1    
     /*
      * read the ADCs
      */
@@ -166,36 +183,60 @@ void pm_loop()
       sei();
      }
      {
-      uint32_t adc = analogRead(PIN_IN_U4);
+      uint32_t adc = analogRead(ADC_CH_A0_A1_20x);
       adc = (adc*2560)/1023;
       adc *= UMULTIPLYER;
       cli();
-      u8TWIMem[TWI_MEM_U4+0] = (adc>>0)&0xff;
-      u8TWIMem[TWI_MEM_U4+1] = (adc>>8)&0xff;
+      u8TWIMem[TWI_MEM_I1+0] = (adc>>0)&0xff;
+      u8TWIMem[TWI_MEM_I1+1] = (adc>>8)&0xff;
       sei();
      }
-
+     {
+      uint32_t adc = analogRead(ADC_CH_A0_A3_20x);
+      adc = (adc*2560)/1023;
+      adc *= UMULTIPLYER;
+      cli();
+      u8TWIMem[TWI_MEM_I2+0] = (adc>>0)&0xff;
+      u8TWIMem[TWI_MEM_I2+1] = (adc>>8)&0xff;
+      sei();
+     }
+     {
+      uint32_t adc = analogRead(ADC_CH_A1_A2_20x);
+      adc = (adc*2560)/1023;
+      adc *= UMULTIPLYER;
+      cli();
+      u8TWIMem[TWI_MEM_I3+0] = (adc>>0)&0xff;
+      u8TWIMem[TWI_MEM_I3+1] = (adc>>8)&0xff;
+      sei();
+     }
      /*
       * increment loop counter
       */
      {
-      int32_t v = 0;      
-      cli();
-      v = (v<<8) |u8TWIMem[TWI_MEM_LOOPCNT+0];
-      v = (v<<8) |u8TWIMem[TWI_MEM_LOOPCNT+1];
-      v = (v<<8) |u8TWIMem[TWI_MEM_LOOPCNT+2];
-      v = (v<<8) |u8TWIMem[TWI_MEM_LOOPCNT+3];
+      uint32_t v = 0;      
+      v = (v<<8) | u8TWIMem[TWI_MEM_LOOPCNT+3];
+      v = (v<<8) | u8TWIMem[TWI_MEM_LOOPCNT+2];
+      v = (v<<8) | u8TWIMem[TWI_MEM_LOOPCNT+1];
+      v = (v<<8) | u8TWIMem[TWI_MEM_LOOPCNT+0];
       v++;
+      cli();
       u8TWIMem[TWI_MEM_LOOPCNT+0] = (v>>0)&0xff;
       u8TWIMem[TWI_MEM_LOOPCNT+1] = (v>>8)&0xff;
       u8TWIMem[TWI_MEM_LOOPCNT+2] = (v>>16)&0xff;
       u8TWIMem[TWI_MEM_LOOPCNT+3] = (v>>24)&0xff;
       sei();
      }
+    cli();
+    u8TWIMem[TWI_MEM_RTC+0] = (pm_rtc>>0)&0xff;
+    u8TWIMem[TWI_MEM_RTC+1] = (pm_rtc>>8)&0xff;
+    u8TWIMem[TWI_MEM_RTC+1] = (pm_rtc>>16)&0xff;
+    u8TWIMem[TWI_MEM_RTC+1] = (pm_rtc>>24)&0xff;
+    sei();
+#endif
 
   uint8_t p = pmsw();
 
-#if 0
+#if 0 
   // allways on
   digitalWrite(PIN_ON,HIGH);  
 #else
@@ -235,10 +276,24 @@ void pm_loop()
       {
         pm_pwrup = 0;
         pm_shdwn = 0;
+
+        u8TWIMem[TWI_MEM_SHDWNCNT+0] = (DEF_SHUTDOWNDELAY>>0)&0xff;
+        u8TWIMem[TWI_MEM_SHDWNCNT+1] = (DEF_SHUTDOWNDELAY>>8)&0xff;
+        
         digitalWrite(PIN_ON,HIGH);        
       }
     }
   }
 #endif  
-  system_sleep();
+
+#if 1
+  if( digitalRead(PIN_ON) == LOW )
+  {
+    system_sleep();
+  }
+  else if( i2c_active() == 0 )
+  {
+    system_sleep();
+  }
+#endif
 }

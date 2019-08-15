@@ -36,6 +36,7 @@
 int main(int argc, char * argv[])
 {
   int rc;
+  sensor_msgs::msg::NavSatFix msg;
   struct gps_data_t gps_data;
   if ((rc = gps_open("localhost", "2947", &gps_data)) == -1) {
     printf("code: %d, reason: %s\n", rc, gps_errstr(rc));
@@ -44,10 +45,12 @@ int main(int argc, char * argv[])
   gps_stream(&gps_data, WATCH_ENABLE | WATCH_JSON, NULL);
 
   rclcpp::init(argc, argv);
+  msg.header.frame_id = "r2m_gps";
 
   auto node = rclcpp::Node::make_shared("r2m_gps");
 
-  rclcpp::WallRate loop_rate(30);
+  auto gps_pub = node->create_publisher<sensor_msgs::msg::NavSatFix>("gps", 100);
+  rclcpp::WallRate loop_rate(100);
 
   RCLCPP_INFO(node->get_logger(), "START");
 
@@ -67,6 +70,16 @@ int main(int argc, char * argv[])
                 !isnan(gps_data.fix.longitude)) {
                     //gettimeofday(&tv, NULL); EDIT: tv.tv_sec isn't actually the timestamp!
                     printf("latitude: %f, longitude: %f, speed: %f, timestamp: %lf\n", gps_data.fix.latitude, gps_data.fix.longitude, gps_data.fix.speed, gps_data.fix.time); //EDIT: Replaced tv.tv_sec with gps_data.fix.time
+
+		msg.header.stamp = clock->now();
+		msg.status.status = 0 /*sensor_msgs::msg::NavSatStatus::STATUS_FIX*/;
+		msg.status.service = 1 /* sensor_msgs::msg::NavSatStatus::SERVICE_GPS */;
+		msg.latitude = gps_data.fix.latitude;
+		msg.longitude = gps_data.fix.longitude;
+		msg.altitude = gps_data.fix.altitude;
+		msg.position_covariance_type = msg.COVARIANCE_TYPE_UNKNOWN;
+		gps_pub->publish(msg);
+
             } else {
                 printf("no GPS data available\n");
             }

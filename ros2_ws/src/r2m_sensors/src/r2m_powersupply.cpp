@@ -32,6 +32,25 @@
 #include "rclcpp/time_source.hpp"
 
 #include "std_msgs/msg/float32.hpp"
+#include "std_msgs/msg/u_int32.hpp"
+
+#define TWI_MEM_LOOPCNT   (0x00) /* 32Bit */
+                       // (0x02)
+#define TWI_MEM_RTC       (0x04) /* 32Bit */
+                       // (0x06)
+#define TWI_MEM_PMSW      (0x08)
+                       
+#define TWI_MEM_SHDWNCNT  (0x10)
+#define TWI_MEM_PWRUPCNT  (0x12)
+
+#define TWI_MEM_U1        (0x20)
+#define TWI_MEM_U2        (0x22)
+#define TWI_MEM_U3        (0x24)
+#define TWI_MEM_U4        (0x26)
+
+#define TWI_MEM_I1        (0x30)
+#define TWI_MEM_I2        (0x32)
+#define TWI_MEM_I3        (0x34)
 
 int main(int argc, char * argv[])
 {
@@ -64,11 +83,13 @@ int main(int argc, char * argv[])
 
   auto node = rclcpp::Node::make_shared("r2m_powersupply");
 
-  std_msgs::msg::Float32 ubat_msg;
-  auto ubat_pub = node->create_publisher<std_msgs::msg::Float32>("powersupply/ubat", 100);
-  ubat_msg.data = 0;
+  std_msgs::msg::UInt32 msg_loopcnt;
+  auto pub_loopcnt = node->create_publisher<std_msgs::msg::UInt32>("powersupply/loopcnt", 500);
 
-  rclcpp::WallRate loop_rate(100);
+  std_msgs::msg::Float32 msg_ubat;
+  auto pub_ubat = node->create_publisher<std_msgs::msg::Float32>("powersupply/ubat", 500);
+
+  rclcpp::WallRate loop_rate(500);
 
   rclcpp::TimeSource ts(node);
   rclcpp::Clock::SharedPtr clock = std::make_shared<rclcpp::Clock>(RCL_ROS_TIME);
@@ -77,15 +98,31 @@ int main(int argc, char * argv[])
   //RCLCPP_INFO(node->get_logger(), "START");
 
   while (rclcpp::ok()) {
-    uint8_t addr = 0;
-    uint8_t data[4] = {0};
-    write(device, &addr, sizeof(addr));
-    if( read(device, &data, sizeof(data)) == sizeof(data) )
-    {
-      ubat_msg.data = (data[0]<<0)|(data[1]<<8)|(data[2]<<16)|(data[3]<<24);
-      RCLCPP_INFO(node->get_logger(), "UBat: %f",ubat_msg.data);
-      ubat_pub->publish(ubat_msg);
-    }
+	  {
+		/* TWI_MEM_LOOPCNT */
+		uint8_t addr = TWI_MEM_LOOPCNT;
+		uint8_t data[4] = {0};
+		write(device, &addr, sizeof(addr));
+		if( read(device, &data, sizeof(data)) == sizeof(data) )
+		{
+		  msg_loopcnt.data = (data[0]<<0)|(data[1]<<8)|(data[2]<<16)|(data[3]<<24);
+		  RCLCPP_INFO(node->get_logger(), "UBat: %f",msg_loopcnt.data);
+		  pub_loopcnt->publish(msg_loopcnt);
+		}
+	  }
+
+	  {
+		/* TWI_MEM_LOOPCNT */
+		uint8_t addr = TWI_MEM_U1;
+		uint8_t data[2] = {0};
+		write(device, &addr, sizeof(addr));
+		if( read(device, &data, sizeof(data)) == sizeof(data) )
+		{
+		  msg_ubat.data = (data[0]<<0)|(data[1]<<8);
+		  RCLCPP_INFO(node->get_logger(), "UBat: %f",msg_ubat.data);
+		  pub_ubat->publish(msg_ubat);
+		}
+	  }
 
     rclcpp::spin_some(node);
     loop_rate.sleep();

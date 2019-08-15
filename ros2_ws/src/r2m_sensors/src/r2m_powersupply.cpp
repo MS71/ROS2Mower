@@ -65,7 +65,7 @@ int main(int argc, char * argv[])
   auto node = rclcpp::Node::make_shared("r2m_powersupply");
 
   std_msgs::msg::Float32 ubat_msg;
-  auto ubat_pub = node->create_publisher<std_msgs::msg::Float32>("ubat", 100);
+  auto ubat_pub = node->create_publisher<std_msgs::msg::Float32>("powersupply/ubat", 100);
   ubat_msg.data = 0;
 
   rclcpp::WallRate loop_rate(100);

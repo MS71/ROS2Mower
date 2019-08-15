@@ -106,7 +106,8 @@ int main(int argc, char * argv[])
 
   //RCLCPP_INFO(node->get_logger(), "START");
 
-  while (rclcpp::ok()) {
+  while (rclcpp::ok()) 
+  {
 	  {
 		uint8_t addr = TWI_MEM_LOOPCNT;
 		uint8_t data[4] = {0};
@@ -158,7 +159,7 @@ int main(int argc, char * argv[])
 			{
 			  msg_ucharge.data = ((data[0]<<0)|(data[1]<<8))/1000.0;
 			  RCLCPP_INFO(node->get_logger(), "UCharge: %f",msg_ucharge.data);
-			  pub_ucharge->publish(msg_ubat);
+			  pub_ucharge->publish(msg_ucharge);
 			}
 		}			
 	  }
@@ -172,7 +173,7 @@ int main(int argc, char * argv[])
 			{
 			  msg_usolar.data = ((data[0]<<0)|(data[1]<<8))/1000.0;
 			  RCLCPP_INFO(node->get_logger(), "USolar: %f",msg_usolar.data);
-			  pub_usolar->publish(msg_ubat);
+			  pub_usolar->publish(msg_usolar);
 			}
 		}			
 	  }

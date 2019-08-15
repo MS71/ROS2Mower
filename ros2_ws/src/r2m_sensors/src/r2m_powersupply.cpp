@@ -116,7 +116,7 @@ int main(int argc, char * argv[])
 			if( read(device, &data, sizeof(data)) == sizeof(data) )
 			{
 			  msg_loopcnt.data = (data[0]<<0)|(data[1]<<8)|(data[2]<<16)|(data[3]<<24);
-			  RCLCPP_INFO(node->get_logger(), "LoopCnt: %d",msg_loopcnt.data);
+			  //RCLCPP_INFO(node->get_logger(), "LoopCnt: %d",msg_loopcnt.data);
 			  pub_loopcnt->publish(msg_loopcnt);
 			}
 		}
@@ -130,7 +130,7 @@ int main(int argc, char * argv[])
 			if( read(device, &data, sizeof(data)) == sizeof(data) )
 			{
 			  msg_ubat.data = ((data[0]<<0)|(data[1]<<8))/1000.0;
-			  RCLCPP_INFO(node->get_logger(), "UBat: %f",msg_ubat.data);
+			  //RCLCPP_INFO(node->get_logger(), "UBat: %f",msg_ubat.data);
 			  pub_ubat->publish(msg_ubat);
 			}
 		}			
@@ -144,7 +144,7 @@ int main(int argc, char * argv[])
 			if( read(device, &data, sizeof(data)) == sizeof(data) )
 			{
 			  msg_uout.data = ((data[0]<<0)|(data[1]<<8))/1000.0;
-			  RCLCPP_INFO(node->get_logger(), "UOut: %f",msg_uout.data);
+			  //RCLCPP_INFO(node->get_logger(), "UOut: %f",msg_uout.data);
 			  pub_uout->publish(msg_uout);
 			}
 		}			
@@ -158,7 +158,7 @@ int main(int argc, char * argv[])
 			if( read(device, &data, sizeof(data)) == sizeof(data) )
 			{
 			  msg_ucharge.data = ((data[0]<<0)|(data[1]<<8))/1000.0;
-			  RCLCPP_INFO(node->get_logger(), "UCharge: %f",msg_ucharge.data);
+			  //RCLCPP_INFO(node->get_logger(), "UCharge: %f",msg_ucharge.data);
 			  pub_ucharge->publish(msg_ucharge);
 			}
 		}			
@@ -172,7 +172,7 @@ int main(int argc, char * argv[])
 			if( read(device, &data, sizeof(data)) == sizeof(data) )
 			{
 			  msg_usolar.data = ((data[0]<<0)|(data[1]<<8))/1000.0;
-			  RCLCPP_INFO(node->get_logger(), "USolar: %f",msg_usolar.data);
+			  //RCLCPP_INFO(node->get_logger(), "USolar: %f",msg_usolar.data);
 			  pub_usolar->publish(msg_usolar);
 			}
 		}			

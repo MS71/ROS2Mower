@@ -29,7 +29,7 @@ Orange Pi Zero Plus H5 Setup (http://www.orangepi.org/OrangePiZeroPlus):
 => reboot
 * login via ssh
 * apt-get update && apt-get upgrade
-* apt-get install htop gpsd gpsd-clients joe sysbench minicom i2c-tools git
+* apt-get install htop gpsd gpsd-clients joe sysbench minicom i2c-tools git libi2c-dev libgps-dev
 * edit /etc/defaults/gpsd
 => GPSD_OPTIONS="-n -b -r"
 => DEVICES="/dev/ttyS1"

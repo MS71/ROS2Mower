@@ -89,6 +89,15 @@ int main(int argc, char * argv[])
   std_msgs::msg::Float32 msg_ubat;
   auto pub_ubat = node->create_publisher<std_msgs::msg::Float32>("powersupply/ubat", 500);
 
+  std_msgs::msg::Float32 msg_uout;
+  auto pub_uout = node->create_publisher<std_msgs::msg::Float32>("powersupply/uout", 500);
+
+  std_msgs::msg::Float32 msg_ucharge;
+  auto pub_ucharge = node->create_publisher<std_msgs::msg::Float32>("powersupply/ucharge", 500);
+
+  std_msgs::msg::Float32 msg_usolar;
+  auto pub_usolar = node->create_publisher<std_msgs::msg::Float32>("powersupply/usolar", 500);
+
   rclcpp::WallRate loop_rate(500);
 
   rclcpp::TimeSource ts(node);
@@ -119,8 +128,50 @@ int main(int argc, char * argv[])
 		{
 			if( read(device, &data, sizeof(data)) == sizeof(data) )
 			{
-			  msg_ubat.data = (data[0]<<0)|(data[1]<<8);
+			  msg_ubat.data = ((data[0]<<0)|(data[1]<<8))/1000.0;
 			  RCLCPP_INFO(node->get_logger(), "UBat: %f",msg_ubat.data);
+			  pub_ubat->publish(msg_ubat);
+			}
+		}			
+	  }
+
+	  {
+		uint8_t addr = TWI_MEM_U2;
+		uint8_t data[2] = {0};
+		if( write(device, &addr, sizeof(addr)) == sizeof(addr) )
+		{
+			if( read(device, &data, sizeof(data)) == sizeof(data) )
+			{
+			  msg_uout.data = ((data[0]<<0)|(data[1]<<8))/1000.0;
+			  RCLCPP_INFO(node->get_logger(), "UOut: %f",msg_uout.data);
+			  pub_ubat->publish(msg_uout);
+			}
+		}			
+	  }
+
+	  {
+		uint8_t addr = TWI_MEM_U3;
+		uint8_t data[2] = {0};
+		if( write(device, &addr, sizeof(addr)) == sizeof(addr) )
+		{
+			if( read(device, &data, sizeof(data)) == sizeof(data) )
+			{
+			  msg_ucharge.data = ((data[0]<<0)|(data[1]<<8))/1000.0;
+			  RCLCPP_INFO(node->get_logger(), "UCharge: %f",msg_ucharge.data);
+			  pub_ubat->publish(msg_ubat);
+			}
+		}			
+	  }
+
+	  {
+		uint8_t addr = TWI_MEM_U4;
+		uint8_t data[2] = {0};
+		if( write(device, &addr, sizeof(addr)) == sizeof(addr) )
+		{
+			if( read(device, &data, sizeof(data)) == sizeof(data) )
+			{
+			  msg_usolar.data = ((data[0]<<0)|(data[1]<<8))/1000.0;
+			  RCLCPP_INFO(node->get_logger(), "USolar: %f",msg_usolar.data);
 			  pub_ubat->publish(msg_ubat);
 			}
 		}			

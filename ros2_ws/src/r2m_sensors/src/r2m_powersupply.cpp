@@ -144,7 +144,7 @@ int main(int argc, char * argv[])
 			{
 			  msg_uout.data = ((data[0]<<0)|(data[1]<<8))/1000.0;
 			  RCLCPP_INFO(node->get_logger(), "UOut: %f",msg_uout.data);
-			  pub_ubat->publish(msg_uout);
+			  pub_uout->publish(msg_uout);
 			}
 		}			
 	  }
@@ -158,7 +158,7 @@ int main(int argc, char * argv[])
 			{
 			  msg_ucharge.data = ((data[0]<<0)|(data[1]<<8))/1000.0;
 			  RCLCPP_INFO(node->get_logger(), "UCharge: %f",msg_ucharge.data);
-			  pub_ubat->publish(msg_ubat);
+			  pub_ucharge->publish(msg_ubat);
 			}
 		}			
 	  }
@@ -172,7 +172,7 @@ int main(int argc, char * argv[])
 			{
 			  msg_usolar.data = ((data[0]<<0)|(data[1]<<8))/1000.0;
 			  RCLCPP_INFO(node->get_logger(), "USolar: %f",msg_usolar.data);
-			  pub_ubat->publish(msg_ubat);
+			  pub_usolar->publish(msg_ubat);
 			}
 		}			
 	  }

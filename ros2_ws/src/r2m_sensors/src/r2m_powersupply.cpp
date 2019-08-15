@@ -86,6 +86,9 @@ int main(int argc, char * argv[])
   std_msgs::msg::UInt32 msg_loopcnt;
   auto pub_loopcnt = node->create_publisher<std_msgs::msg::UInt32>("powersupply/loopcnt", 500);
 
+  std_msgs::msg::UInt32 msg_rtc;
+  auto pub_rtc = node->create_publisher<std_msgs::msg::UInt32>("powersupply/rtc", 500);
+
   std_msgs::msg::Float32 msg_ubat;
   auto pub_ubat = node->create_publisher<std_msgs::msg::Float32>("powersupply/ubat", 500);
 
@@ -98,6 +101,15 @@ int main(int argc, char * argv[])
   std_msgs::msg::Float32 msg_usolar;
   auto pub_usolar = node->create_publisher<std_msgs::msg::Float32>("powersupply/usolar", 500);
 
+  std_msgs::msg::Float32 msg_icharge;
+  auto pub_icharge = node->create_publisher<std_msgs::msg::Float32>("powersupply/icharge", 500);
+
+  std_msgs::msg::Float32 msg_iout;
+  auto pub_iout = node->create_publisher<std_msgs::msg::Float32>("powersupply/iout", 500);
+
+  std_msgs::msg::Float32 msg_isolar;
+  auto pub_isolar = node->create_publisher<std_msgs::msg::Float32>("powersupply/isolar", 500);
+
   rclcpp::WallRate loop_rate(500);
 
   rclcpp::TimeSource ts(node);
@@ -108,75 +120,45 @@ int main(int argc, char * argv[])
 
   while (rclcpp::ok()) 
   {
-	  {
-		uint8_t addr = TWI_MEM_LOOPCNT;
-		uint8_t data[4] = {0};
-		if( write(device, &addr, sizeof(addr)) == sizeof(addr) )
-		{
-			if( read(device, &data, sizeof(data)) == sizeof(data) )
-			{
-			  msg_loopcnt.data = (data[0]<<0)|(data[1]<<8)|(data[2]<<16)|(data[3]<<24);
-			  //RCLCPP_INFO(node->get_logger(), "LoopCnt: %d",msg_loopcnt.data);
-			  pub_loopcnt->publish(msg_loopcnt);
-			}
-		}
+#define READ_AND_PUB_UINT32(_addr_,_msg_,_pub_) \
+	  { \
+		uint8_t addr = _addr_; \
+		uint8_t data[4] = {0}; \
+		if( write(device, &addr, sizeof(addr)) == sizeof(addr) ) \
+		{ \
+			if( read(device, &data, sizeof(data)) == sizeof(data) ) \
+			{ \
+			  _msg_.data = ((data[0]<<0)|(data[1]<<8)|(data[2]<<16)|(data[3]<<24)); \
+			  _pub_->publish(_msg_); \
+			} \
+		} \
 	  }
 
-	  {
-		uint8_t addr = TWI_MEM_U1;
-		uint8_t data[2] = {0};
-		if( write(device, &addr, sizeof(addr)) == sizeof(addr) )
-		{
-			if( read(device, &data, sizeof(data)) == sizeof(data) )
-			{
-			  msg_ubat.data = ((data[0]<<0)|(data[1]<<8))/1000.0;
-			  //RCLCPP_INFO(node->get_logger(), "UBat: %f",msg_ubat.data);
-			  pub_ubat->publish(msg_ubat);
-			}
-		}			
-	  }
+	  READ_AND_PUB_UINT32(TWI_MEM_LOOPCNT,msg_loopcnt,pub_loopcnt);
+	  READ_AND_PUB_UINT32(TWI_MEM_RTC,msg_rtc,pub_rtc);
 
-	  {
-		uint8_t addr = TWI_MEM_U2;
-		uint8_t data[2] = {0};
-		if( write(device, &addr, sizeof(addr)) == sizeof(addr) )
-		{
-			if( read(device, &data, sizeof(data)) == sizeof(data) )
-			{
-			  msg_uout.data = ((data[0]<<0)|(data[1]<<8))/1000.0;
-			  //RCLCPP_INFO(node->get_logger(), "UOut: %f",msg_uout.data);
-			  pub_uout->publish(msg_uout);
-			}
-		}			
+#define READ_AND_PUB_FLOAT32(_addr_,_msg_,_pub_) \
+	  { \
+		uint8_t addr = _addr_; \
+		uint8_t data[2] = {0}; \
+		if( write(device, &addr, sizeof(addr)) == sizeof(addr) ) \
+		{ \
+			if( read(device, &data, sizeof(data)) == sizeof(data) ) \
+			{ \
+			  _msg_.data = ((data[0]<<0)|(data[1]<<8))/1000.0; \
+			  _pub_->publish(_msg_); \
+			} \
+		} \
 	  }
+	  
+	  READ_AND_PUB_FLOAT32(TWI_MEM_U1,msg_ubat,pub_ubat);
+	  READ_AND_PUB_FLOAT32(TWI_MEM_U2,msg_uout,pub_uout);
+	  READ_AND_PUB_FLOAT32(TWI_MEM_U3,msg_ucharge,pub_ucharge);
+	  READ_AND_PUB_FLOAT32(TWI_MEM_U4,msg_usolar,pub_usolar);
 
-	  {
-		uint8_t addr = TWI_MEM_U3;
-		uint8_t data[2] = {0};
-		if( write(device, &addr, sizeof(addr)) == sizeof(addr) )
-		{
-			if( read(device, &data, sizeof(data)) == sizeof(data) )
-			{
-			  msg_ucharge.data = ((data[0]<<0)|(data[1]<<8))/1000.0;
-			  //RCLCPP_INFO(node->get_logger(), "UCharge: %f",msg_ucharge.data);
-			  pub_ucharge->publish(msg_ucharge);
-			}
-		}			
-	  }
-
-	  {
-		uint8_t addr = TWI_MEM_U4;
-		uint8_t data[2] = {0};
-		if( write(device, &addr, sizeof(addr)) == sizeof(addr) )
-		{
-			if( read(device, &data, sizeof(data)) == sizeof(data) )
-			{
-			  msg_usolar.data = ((data[0]<<0)|(data[1]<<8))/1000.0;
-			  //RCLCPP_INFO(node->get_logger(), "USolar: %f",msg_usolar.data);
-			  pub_usolar->publish(msg_usolar);
-			}
-		}			
-	  }
+	  READ_AND_PUB_FLOAT32(TWI_MEM_I1,msg_icharge,pub_icharge);
+	  READ_AND_PUB_FLOAT32(TWI_MEM_I2,msg_iout,pub_iout);
+	  READ_AND_PUB_FLOAT32(TWI_MEM_I3,msg_isolar,pub_isolar);
 
     rclcpp::spin_some(node);
     loop_rate.sleep();

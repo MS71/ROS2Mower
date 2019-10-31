@@ -117,7 +117,7 @@ void i2c_write(int add1, int add2, int nbytes, char value[10], int file)
 }
 #endif
 
-#define I2CDEV "/dev/i2c-12"
+#define I2CDEV "/dev/i2c-ros"
 
 int io_i2c_open(uint8_t addr)
 {

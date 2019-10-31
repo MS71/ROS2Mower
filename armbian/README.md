@@ -41,11 +41,17 @@ Orange Pi Zero Plus H5 Setup (http://www.orangepi.org/OrangePiZeroPlus):
 * export LANG=en_US.UTF-8
 * sudo apt update && sudo apt install curl gnupg2 lsb-release
 * curl -s https://raw.githubusercontent.com/ros/rosdistro/master/ros.asc | sudo apt-key add -
-* sudo sh -c 'echo "deb [arch=arm64] http://packages.ros.org/ros2/ubuntu `lsb_release -cs` main" > /etc/apt/sources.list.d/ros2-latest.list'
+* sudo sh -c 'echo "deb [arch=amd64,arm64] http://packages.ros.org/ros2/ubuntu `lsb_release -cs` main" > /etc/apt/sources.list.d/ros2-latest.list'
 * sudo apt update
-* apt-get install ros-dashing-ros-base ros-dashing-demo-nodes-cpp ros-dashing-demo-nodes-py ros-dashing-joy ros-dashing-nav2-dynamic-params ros-dashing-navigation2 ros-dashing-nav2-map-server ros-dashing-robot-state-publisher ros-dashing-ros2action ros-dashing-ros2bag ros-dashing-ros2component ros-dashing-ros2launch ros-dashing-ros2param ros-dashing-ros2service ros-dashing-ros2topic ros-dashing-vision-opencv
-* apt install python3-colcon-common-extensions
+* apt-get install ros-dashing-ros-base ros-dashing-demo-nodes-cpp ros-dashing-demo-nodes-py ros-dashing-joy ros-dashing-nav2-dynamic-params ros-dashing-navigation2 ros-dashing-nav2-map-server ros-dashing-robot-state-publisher ros-dashing-ros2action ros-dashing-ros2bag ros-dashing-ros2component ros-dashing-ros2launch ros-dashing-ros2param ros-dashing-ros2service ros-dashing-ros2topic ros-dashing-vision-opencv python3-colcon-common-extensions
 
 
+Orange Pi Zero (H2+) Setup (http://www.orangepi.org/orangepizero/):
+* git clone https://github.com/armbian/build.git armbian_build_h2p
+* cd armbian_build_h2p
+* git checkout sunxi-4.20 
+* ./compile.sh BOARD=orangepizero BRANCH=next BUILD_DESKTOP=no KERNEL_ONLY=no KERNEL_CONFIGURE=no RELEASE=bionic
+* ...
+* ROS2 is not currently released for arm32
 
 

@@ -28,7 +28,7 @@ def generate_launch_description():
         Node(package='robot_state_publisher', node_executable='robot_state_publisher', output='screen', arguments=[urdf]),
         Node(package='r2m_sensors', node_executable='r2m_joint_states', output='screen'),
         Node(package='r2m_sensors', node_executable='r2m_laser', output='screen'),
-        #Node(package='r2m_sensors', node_executable='r2m_powersupply', output='screen'),
+        Node(package='r2m_sensors', node_executable='r2m_powersupply', output='screen'),
         Node(package='r2m_sensors', node_executable='r2m_gps', output='screen'),
         Node(package='r2m_sensors', node_executable='r2m_epd', output='screen')
     ])

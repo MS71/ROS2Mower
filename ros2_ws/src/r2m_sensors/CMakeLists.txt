@@ -20,6 +20,12 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(libgps REQUIRED IMPORTED_TARGET libgps)
 #pkg_check_modules(libi2c REQUIRED IMPORTED_TARGET libi2c)
 
+add_executable(r2m_epd src/r2m_epd.cpp src/io_i2c.cpp src/r2m_epd.cpp src/epd/EPD_1in54.c src/epd/GUI_BMPfile.c src/epd/GUI_Paint.c src/epd/font12.c src/epd/font12CN.c src/epd/font16.c src/epd/font20.c src/epd/font24.c src/epd/font24CN.c src/epd/font8.c )
+ament_target_dependencies(r2m_epd
+  "rclcpp"
+  "sensor_msgs"
+)
+
 add_executable(r2m_laser src/r2m_laser.cpp)
 ament_target_dependencies(r2m_laser
   "rclcpp"
@@ -53,6 +59,7 @@ install(TARGETS
   r2m_joint_states
   r2m_laser
   r2m_gps
+  r2m_epd
   r2m_powersupply
   DESTINATION lib/${PROJECT_NAME})
 

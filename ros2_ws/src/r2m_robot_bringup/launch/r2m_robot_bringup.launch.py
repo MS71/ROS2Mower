@@ -25,10 +25,10 @@ def generate_launch_description():
                         'launch', 'single_rrbot.urdf')
     return LaunchDescription([
         Node(package='r2m_map_server', node_executable='r2m_map_server', output='screen'),
-        Node(package='robot_state_publisher', node_executable='robot_state_publisher',
-             output='screen', arguments=[urdf]),
+        Node(package='robot_state_publisher', node_executable='robot_state_publisher', output='screen', arguments=[urdf]),
         Node(package='r2m_sensors', node_executable='r2m_joint_states', output='screen'),
         Node(package='r2m_sensors', node_executable='r2m_laser', output='screen'),
-        Node(package='r2m_sensors', node_executable='r2m_powersupply', output='screen'),
-        Node(package='r2m_sensors', node_executable='r2m_gps', output='screen')
+        #Node(package='r2m_sensors', node_executable='r2m_powersupply', output='screen'),
+        Node(package='r2m_sensors', node_executable='r2m_gps', output='screen'),
+        Node(package='r2m_sensors', node_executable='r2m_epd', output='screen')
     ])

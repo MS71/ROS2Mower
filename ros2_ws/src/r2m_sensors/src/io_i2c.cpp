@@ -138,19 +138,36 @@ int io_i2c_open(uint8_t addr)
 
 void io_i2c_close(int fd)
 {
-	close(fd);
+	if( fd != -1 )
+	{
+		close(fd);
+	}
 }
 
 int io_i2c_write_bytes(int fd, uint8_t *buf, uint16_t nbytes)
 {
-    if(write(fd, buf, nbytes) != nbytes) {
-	fprintf(stderr, "Error writing %i bytes\n", nbytes);
+	int rc;
+	if( fd == -1 )
+	{
+		return -1;
+	}
+
+    if((rc = write(fd, buf, nbytes)) != nbytes) {
+		fprintf(stderr, "Error writing %i bytes\n", nbytes);
     }
+	return rc;
 }
 
 int io_i2c_read_bytes(int fd, uint8_t *buf, uint16_t nbytes)
 {
-    if(read(fd, buf, nbytes) != nbytes) {
-	fprintf(stderr, "Error writing %i bytes\n", nbytes);
+	int rc;
+	if( fd == -1 )
+	{
+		return -1;
+	}
+
+    if((rc = read(fd, buf, nbytes)) != nbytes) {
+		fprintf(stderr, "Error writing %i bytes\n", nbytes);
     }
+	return rc;
 }

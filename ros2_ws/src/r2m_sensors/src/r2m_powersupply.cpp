@@ -34,6 +34,8 @@
 #include "std_msgs/msg/float32.hpp"
 #include "std_msgs/msg/u_int32.hpp"
 
+#include "io_i2c.h"
+
 #define TWI_MEM_LOOPCNT   (0x00) /* 32Bit */
                        // (0x02)
 #define TWI_MEM_RTC       (0x04) /* 32Bit */
@@ -55,28 +57,11 @@
 int main(int argc, char * argv[])
 {
   int device;
-  unsigned long funcs;
+  //unsigned long funcs;
 
   /* Geraetedatei oeffnen */
   printf("Opening device...");
-  if ((device = open("/dev/i2c-0", O_RDWR)) < 0)
-    {
-	perror("open() failed");
-    	exit (1);
-    }
-
-  /* Abfragen, ob die I2C-Funktionen da sind */
-  if (ioctl(device,I2C_FUNCS,&funcs) < 0)
-    {
-    perror("ioctl() I2C_FUNCS failed");
-    exit (1);
-    }
-
-  if (ioctl(device, I2C_SLAVE, 9) < 0)
-  {
-    perror("ioctl() powersupply I2C slave not found");
-    exit (1);
-  }
+  device = io_i2c_open(9);
 
   rclcpp::init(argc, argv);
   //msg.header.frame_id = "r2m_powersupply";
@@ -120,45 +105,17 @@ int main(int argc, char * argv[])
 
   while (rclcpp::ok()) 
   {
-#define READ_AND_PUB_UINT32(_addr_,_msg_,_pub_) \
-	  { \
-		uint8_t addr = _addr_; \
-		uint8_t data[4] = {0}; \
-		if( write(device, &addr, sizeof(addr)) == sizeof(addr) ) \
-		{ \
-			if( read(device, &data, sizeof(data)) == sizeof(data) ) \
-			{ \
-			  _msg_.data = ((data[0]<<0)|(data[1]<<8)|(data[2]<<16)|(data[3]<<24)); \
-			  _pub_->publish(_msg_); \
-			} \
-		} \
-	  }
+	  READ_AND_PUB_UINT32(device,TWI_MEM_LOOPCNT,msg_loopcnt,pub_loopcnt);
+	  READ_AND_PUB_UINT32(device,TWI_MEM_RTC,msg_rtc,pub_rtc);
+  
+	  READ_AND_PUB_FLOAT32(device,TWI_MEM_U1,msg_ubat,pub_ubat);
+	  READ_AND_PUB_FLOAT32(device,TWI_MEM_U2,msg_uout,pub_uout);
+	  READ_AND_PUB_FLOAT32(device,TWI_MEM_U3,msg_ucharge,pub_ucharge);
+	  READ_AND_PUB_FLOAT32(device,TWI_MEM_U4,msg_usolar,pub_usolar);
 
-	  READ_AND_PUB_UINT32(TWI_MEM_LOOPCNT,msg_loopcnt,pub_loopcnt);
-	  READ_AND_PUB_UINT32(TWI_MEM_RTC,msg_rtc,pub_rtc);
-
-#define READ_AND_PUB_FLOAT32(_addr_,_msg_,_pub_) \
-	  { \
-		uint8_t addr = _addr_; \
-		uint8_t data[2] = {0}; \
-		if( write(device, &addr, sizeof(addr)) == sizeof(addr) ) \
-		{ \
-			if( read(device, &data, sizeof(data)) == sizeof(data) ) \
-			{ \
-			  _msg_.data = ((data[0]<<0)|(data[1]<<8))/1000.0; \
-			  _pub_->publish(_msg_); \
-			} \
-		} \
-	  }
-	  
-	  READ_AND_PUB_FLOAT32(TWI_MEM_U1,msg_ubat,pub_ubat);
-	  READ_AND_PUB_FLOAT32(TWI_MEM_U2,msg_uout,pub_uout);
-	  READ_AND_PUB_FLOAT32(TWI_MEM_U3,msg_ucharge,pub_ucharge);
-	  READ_AND_PUB_FLOAT32(TWI_MEM_U4,msg_usolar,pub_usolar);
-
-	  READ_AND_PUB_FLOAT32(TWI_MEM_I1,msg_icharge,pub_icharge);
-	  READ_AND_PUB_FLOAT32(TWI_MEM_I2,msg_iout,pub_iout);
-	  READ_AND_PUB_FLOAT32(TWI_MEM_I3,msg_isolar,pub_isolar);
+	  READ_AND_PUB_FLOAT32(device,TWI_MEM_I1,msg_icharge,pub_icharge);
+	  READ_AND_PUB_FLOAT32(device,TWI_MEM_I2,msg_iout,pub_iout);
+	  READ_AND_PUB_FLOAT32(device,TWI_MEM_I3,msg_isolar,pub_isolar);
 
     rclcpp::spin_some(node);
     loop_rate.sleep();
@@ -166,5 +123,7 @@ int main(int argc, char * argv[])
 
   rclcpp::shutdown();
 
+  io_i2c_close(device);
+  
   return 0;
 }

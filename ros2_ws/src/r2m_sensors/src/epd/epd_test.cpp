@@ -108,7 +108,7 @@ int main()
     printf("Paint_NewImage\r\n");
     Paint_NewImage(BlackImage, EPD_1IN54_WIDTH, EPD_1IN54_HEIGHT, 0, WHITE);
 
-#if 0	
+#if 1	
 	printf("Drawing\r\n");
     //1.Select Image
     Paint_SelectImage(BlackImage);

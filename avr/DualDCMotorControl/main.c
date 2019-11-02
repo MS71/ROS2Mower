@@ -41,7 +41,7 @@ typedef struct
 	uint8_t   pwm;
 
 	int16_t   i16_encoder;
-	
+
 	int64_t   i64_encoder;
 	int8_t    i8_encoder_step;
 } Motor;
@@ -99,14 +99,14 @@ ISR (TIM0_OVF_vect)
   {
 	TIM0_65536us();
   }
-  
+
 }
 
 /********************************************************************************
  Wheel Encoder
  max. 5kHz => 200us
 ********************************************************************************/
-ISR(PCINT0_vect) 
+ISR(PCINT0_vect)
 {
 	{
 		static uint8_t _enca = 0;
@@ -149,12 +149,12 @@ void calcPID(Motor *m,void(*set_mode)(uint8_t mode,uint8_t pwm))
   if( m->pid_setPoint > 0 )
   {
 	m->i8_encoder_step = 1;
-	  
+
     m->pid_Value = pid_Controller(m->pid_setPoint, m->pid_processValue, &m->pid);
     m->pwm = ((((int32_t)m->pid_Value)*255)/SCALING_FACTOR);
     if( m->pwm > 0 )
     {
- 	  set_mode(1,m->pwm);  
+ 	  set_mode(1,m->pwm);
     }
     else
     {
@@ -188,8 +188,8 @@ void calcPID(Motor *m,void(*set_mode)(uint8_t mode,uint8_t pwm))
 void TIM0_65536us()
 {
 	u8Tick = 1;
-	
-	if( (motor_mode==MODE_PID) || 
+
+	if( (motor_mode==MODE_PID) ||
 		(motor_mode==MODE_TEST_01) )
 	{
 		calcPID(&motor_A,setModeA);
@@ -216,7 +216,7 @@ void handle_motor_test_01()
 	{
 		static uint64_t _u64_time_us = 0;
 		static uint8_t step = 0;
-		
+
 		if( step >= MOTOR_TEST_01_STEPS )
 		{
 			step = 0;
@@ -225,7 +225,7 @@ void handle_motor_test_01()
 		if( motor_test_01[step].delay_ms != 0 )
 		{
 			if( u64_time_us >= _u64_time_us )
-			{				
+			{
 				if( motor_mode==MODE_TEST_01 )
 				{
 					motor_A.pid_setPoint = motor_test_01[step].speed_A;
@@ -243,7 +243,7 @@ void handle_motor_test_01()
 					}
 					else
 					{
-						setModeA(0,0);						
+						setModeA(0,0);
 					}
 					if( motor_test_01[step].speed_B > 0 )
 					{
@@ -255,13 +255,13 @@ void handle_motor_test_01()
 					}
 					else
 					{
-						setModeB(0,0);						
+						setModeB(0,0);
 					}
 				}
 				/* next ...
 				 */
-				_u64_time_us = u64_time_us + 
-					(1000UL*motor_test_01[step].delay_ms);				
+				_u64_time_us = u64_time_us +
+					(1000UL*motor_test_01[step].delay_ms);
 				step++;
 			}
 		}
@@ -308,7 +308,7 @@ volatile uint8_t u8TWITmpIdx = 0;
 
 #define TWI_REG_RX(_val_) \
 	((((_val_)>>8)&0xff)+(((_val_)>>0)&0xff))
-	
+
 #define TWI_REG_TX(_val_) \
 	((((_val_)>>8)&0xff)+0)
 
@@ -326,8 +326,8 @@ void i2c_TwiRxHandler( uint16_t idx, uint8_t data )
 	 uint8_t i = 0;
 	 uint8_t v = 0;
 	 uint8_t n = 0;
-	 u8TWITmp[(u8TWITmpIdx++)&15] = data;	
-	 
+	 u8TWITmp[(u8TWITmpIdx++)&15] = data;
+
 	 switch(u8TWIReg+idx)
      {
 		 case TWI_REG_RX(TWI_REG_U16_MODE):
@@ -372,12 +372,16 @@ void i2c_TwiRxHandler( uint16_t idx, uint8_t data )
 			for(i=0;i<n;i++)
 			{
 				v = u8TWITmp[(u8TWITmpIdx-(i+4+1))&15];
-				u8TWITmp[(u8TWITmpIdx-(i+4+1))&15] = 0;				
+				u8TWITmp[(u8TWITmpIdx-(i+4+1))&15] = 0;
 				k_d |= v<<((n-1-i)*8);
 			}
 			pid_Init(k_p,k_i,k_d, &(motor_A.pid));
 			pid_Init(k_p,k_i,k_d, &(motor_B.pid));
-		 break;		 
+
+			motor_A.i64_encoder = 0;
+			motor_B.i64_encoder = 0;
+
+		 break;
 		 case TWI_REG_RX(TWI_REG_S16_MA_PID_SP):
 			motor_A.pid_setPoint = 0;
 			n = TWI_REG_BYTES(TWI_REG_S16_MA_PID_SP);
@@ -387,7 +391,7 @@ void i2c_TwiRxHandler( uint16_t idx, uint8_t data )
 				u8TWITmp[(u8TWITmpIdx-(i+1))&15] = 0;
 				motor_A.pid_setPoint |= v<<((n-1-i)*8);
 			}
-		 break;		 
+		 break;
 		 case TWI_REG_RX(TWI_REG_S16_MB_PID_SP):
 			motor_B.pid_setPoint = 0;
 			n = TWI_REG_BYTES(TWI_REG_S16_MB_PID_SP);
@@ -397,8 +401,8 @@ void i2c_TwiRxHandler( uint16_t idx, uint8_t data )
 				u8TWITmp[(u8TWITmpIdx-(i+1))&15] = 0;
 				motor_B.pid_setPoint |= v<<((n-1-i)*8);
 			}
-		 break;		 
-      default: 
+		 break;
+      default:
 	     break;
      }
   }
@@ -533,7 +537,7 @@ uint8_t i2c_TwiTxHandler( uint16_t idx )
 		}
 		motor_B.i16_encoder = 0;
  	  break;
-      default: 
+      default:
 	     break;
   }
 
@@ -559,7 +563,7 @@ int main(void)
 
     PCMSK0 |= (1<<PCINT0);
 	PCMSK0 |= (1<<PCINT1);
-	GIMSK  = (1<<PCIE0); 
+	GIMSK  = (1<<PCIE0);
 
 	MODE_A(0);
 	MODE_B(0);
@@ -568,8 +572,8 @@ int main(void)
     OCR0B = 0;
 
     // fast PWM mode
-    TCCR0A = (1 << COM0A1) | (0 << COM0A0) | 
-			 (1 << COM0B1) | (0 << COM0B0) | 
+    TCCR0A = (1 << COM0A1) | (0 << COM0A0) |
+			 (1 << COM0B1) | (0 << COM0B0) |
 			 (1 << WGM01) | (1 << WGM00);
     TCCR0B = (0 << CS02) | (1 << CS01) | (0 << CS00);   // clock source = CLK/8, start PWM
 
@@ -584,14 +588,15 @@ int main(void)
     sei();
 
 #if 0
-	motor_mode = MODE_TEST_01_PWM;
-	motor_test_01[0].speed_A = 150;
-	motor_test_01[0].speed_B = 150;
-	motor_test_01[0].delay_ms = 1000;
-	motor_test_01[1].speed_A = -150;
-	motor_test_01[1].speed_B = -150;
-	motor_test_01[1].delay_ms = 1000;
+	//motor_mode = MODE_TEST_01_PWM;
 #endif
+
+	motor_test_01[0].speed_A = 150;
+	motor_test_01[0].speed_B = -150;
+	motor_test_01[0].delay_ms = 3000;
+	motor_test_01[1].speed_A = -150;
+	motor_test_01[1].speed_B = 150;
+	motor_test_01[1].delay_ms = 3000;
 
     for(;;)
     {
@@ -600,7 +605,7 @@ int main(void)
 			u8Tick = 0;
 			handle_motor_test_01();
 		}
-		
+
 		// sleep ...
 		set_sleep_mode(SLEEP_MODE_IDLE);
         sleep_mode();

@@ -139,12 +139,12 @@ public:
       set_MODE_OFF(request_header,request,response);
     });
 
-    server_set_MODE_OFF = create_service<std_srvs::srv::Empty>("r2m_motorctrl/MODE_OFF",
+    server_set_MODE_PID = create_service<std_srvs::srv::Empty>("r2m_motorctrl/MODE_PID",
     [this](const std::shared_ptr<rmw_request_id_t> request_header,
       const std::shared_ptr<std_srvs::srv::Empty::Request> request,
       std::shared_ptr<std_srvs::srv::Empty::Response> response) -> void
     {
-      set_MODE_OFF(request_header,request,response);
+      set_MODE_PID(request_header,request,response);
     });
 
     server_set_MOTOR_PID = create_service<r2m_sensors::srv::SetMotorPID>("r2m_motorctrl/SET_MOTOR_PID",
@@ -171,6 +171,17 @@ public:
 
     RCLCPP_INFO(this->get_logger(), "~ROS2MowerMotorCtrl() ... done");
   }
+
+  void set_MODE_PID(const std::shared_ptr<rmw_request_id_t> request_header,
+      const std::shared_ptr<std_srvs::srv::Empty::Request> request,
+      std::shared_ptr<std_srvs::srv::Empty::Response> response)
+    {
+      RCLCPP_INFO(this->get_logger(), "set_MODE_PID");
+      (void)request_header;
+      (void)request;
+      (void)response;
+      I2C_SET_UINT16(i2cfd,TWI_REG_U16_MODE>>8,2 /*MODE_PID*/);
+    };
 
   void set_MODE_OFF(const std::shared_ptr<rmw_request_id_t> request_header,
       const std::shared_ptr<std_srvs::srv::Empty::Request> request,

@@ -53,6 +53,9 @@ all:	main.hex
 flash:	all
 	$(AVRDUDE) -U flash:w:main.hex:i
 
+flash_only:
+	$(AVRDUDE) -U flash:w:main.hex:i
+
 fuse:
 	$(AVRDUDE) $(FUSES)
 

@@ -12,16 +12,19 @@
 #                is connected.
 # FUSES ........ Parameters for avrdude to flash the fuses appropriately.
 
+TWI_ADDR   = 10
+#DEBUGUART  = y
+
 DEVICE     = attiny84
 CLOCK      = 8000000
 PROGRAMMER = -c usbtiny
 OBJECTS    = main.o pid.o i2c.o
-
-TWI_ADDR   = 10
+ifdef DEBUGUART
+CFLAGS += -DDEBUGUART
+endif
 
 #http://www.engbedded.com/fusecalc/
 FUSES      = -U lfuse:w:0xe2:m -U hfuse:w:0xdd:m -U efuse:w:0xfe:m
-
 
 ######################################################################
 ######################################################################
@@ -29,7 +32,7 @@ FUSES      = -U lfuse:w:0xe2:m -U hfuse:w:0xdd:m -U efuse:w:0xfe:m
 # Tune the lines below only if you know what you are doing:
 
 AVRDUDE = avrdude $(PROGRAMMER) -p $(DEVICE)
-COMPILE = avr-gcc -Wall -Os -DTWI_ADDR=$(TWI_ADDR) -DF_CPU=$(CLOCK) -mmcu=$(DEVICE)
+COMPILE = avr-gcc -Wall -Os ${CFLAGS} -DTWI_ADDR=$(TWI_ADDR) -DF_CPU=$(CLOCK) -mmcu=$(DEVICE)
 
 # symbolic targets:
 all:	main.hex

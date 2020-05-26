@@ -17,8 +17,12 @@
 #define TWI_ADDR    9
 #define TWI_MEMSIZE 256
 
-#define DEF_SHUTDOWNDELAY 120
-#define DEF_POWERUPDELAY  5
+#define DEF_SHUTDOWNDELAY     60       // shutdown after X seconds
+#define DEF_POWERUPDELAY      (30*60)  // powerup after 30 minutes
+#define DEF_POWERUPDELAY_INIT 3        // powerup after 30 minutes
+
+//#define DEF_SHUTDOWNDELAY 5       // shutdown after X seconds
+//#define DEF_POWERUPDELAY  2  // powerup after Y seconds
 
 #define TWI_MEM_LOOPCNT   (0x00) /* 32Bit */
                        // (0x02)
@@ -28,11 +32,14 @@
                        
 #define TWI_MEM_SHDWNCNT  (0x10)
 #define TWI_MEM_PWRUPCNT  (0x12)
+#define TWI_MEM_SHDWNREL  (0x14)
+#define TWI_MEM_PWRUPREL  (0x16)
 
 #define TWI_MEM_U1        (0x20)
 #define TWI_MEM_U2        (0x22)
 #define TWI_MEM_U3        (0x24)
 #define TWI_MEM_U4        (0x26)
+#define TWI_MEM_Ubat      (0x28)
 
 #define TWI_MEM_I1        (0x30) /* ISolar  */
 #define TWI_MEM_I2        (0x32) /* IOut    */
@@ -45,6 +52,9 @@
 //((270.0+47.0)/47.0)
 //#define UMULTIPLYER   (1.32*1247.0/0x175)
 #define UMULTIPLYER     (9.781)
+
+#define UBAT_ON          12400
+#define UBAT_OFF         11000
 
 #define PIN_IN_U1       A0  /* UBat    */
 #define PIN_IN_U2       A1  /* USolar  */

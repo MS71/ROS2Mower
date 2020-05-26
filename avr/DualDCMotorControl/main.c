@@ -4,6 +4,7 @@
 #include <util/delay.h>
 #include <stdarg.h>
 #include <avr/pgmspace.h>
+#include <avr/wdt.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -54,7 +55,7 @@ typedef struct
 	uint8_t   pwm;
 
 	int16_t   i16_encoder;
-	uint32_t  u16_encfreq;
+  uint16_t  u16_encperiod;
 	uint16_t  u16_stepsin64ms;
 
 	int64_t   i64_encoder;
@@ -85,21 +86,16 @@ struct
 
 volatile uint64_t u64_time_us = 0;
 volatile uint8_t u8Tick = 0;
+volatile uint8_t u8HandlePIDFlag = 0;
 
 void handlePID();
 void TIM0_65536us();
 
 static uint64_t get_time_us()
 {
-#if 0
-	return u64_time_us + TCNT0;
-#else
-		{
-			volatile uint8_t tov0 = TIFR0&1;
-			volatile uint16_t tcnt0 = (tov0<<8) | TCNT0;
-			return u64_time_us + tcnt0;
-		}
-#endif
+	volatile uint8_t tov0 = TIFR0&1;
+	volatile uint16_t tcnt0 = (tov0<<8) | TCNT0;
+	return u64_time_us + tcnt0;
 }
 
 #ifdef DEBUGUART
@@ -149,11 +145,21 @@ void uart_handle()
 #endif
 
 /*
+ * ~64ms ISR
+ */
+void TIM0_65536us()
+{
+	u8Tick = 1;
+}
+
+/*
  * timer0 overflow
  */
 volatile uint8_t tim0_divcnt = 0;
 ISR (TIM0_OVF_vect)
 {
+	sei();	// allow other IRQs e.g. i2c
+
   // Freg = F_CPU/(8*256) = 256us ~ 3906.25Hz
   u64_time_us += (1000000UL*8*256)/F_CPU;
   tim0_divcnt++;
@@ -161,13 +167,13 @@ ISR (TIM0_OVF_vect)
   if( (tim0_divcnt&3) == 0 )
   {
   	if( motor_break_cntdown > 0 )
-	{
-		motor_break_cntdown--;
-		if( motor_break_cntdown == 0 )
 		{
-			motor_mode = MODE_BREAK;
+			motor_break_cntdown--;
+			if( motor_break_cntdown == 0 )
+			{
+				motor_mode = MODE_BREAK;
+			}
 		}
-	}
   }
 
 #ifdef DEBUGUART
@@ -177,9 +183,9 @@ ISR (TIM0_OVF_vect)
 if( (tim0_divcnt&15) == 0 )
 	{
 		/*
-		 * ~8ms
+		 * ~4ms
 		 */
-		handlePID();
+ 	  u8HandlePIDFlag = 1;
 	}
 
   if( (tim0_divcnt) == 0 )
@@ -194,6 +200,10 @@ if( (tim0_divcnt&15) == 0 )
 ********************************************************************************/
 ISR(PCINT0_vect)
 {
+	uint64_t t = 0;
+	volatile uint8_t flaga = 0;
+	volatile uint8_t flagb = 0;
+
 	{
 		static uint8_t _enca = 0;
 		uint8_t enca = (PINA & (1<<PIN_ENCA));
@@ -202,17 +212,11 @@ ISR(PCINT0_vect)
 			_enca = enca;
 			if( enca == 0 )
 			{
-				static uint64_t _ta = 0;
-				uint64_t t = get_time_us();
-				uint32_t f = ((uint32_t)1000000 / (t - _ta));
-				_ta = t;
-				motor_A.u16_encfreq = (f + (uint32_t)motor_A.u16_encfreq*3 + f)>>2;
-				motor_A.u16_stepsin64ms++;
-				motor_A.i16_encoder++;
-				motor_A.i64_encoder += motor_A.i8_encoder_step;
+				flaga = 1;
 			}
 		}
 	}
+
 	{
 		static uint8_t _encb = 0;
 		uint8_t encb = (PINA & (1<<PIN_ENCB));
@@ -221,17 +225,46 @@ ISR(PCINT0_vect)
 			_encb = encb;
 			if( encb == 0 )
 			{
-				static uint64_t _tb = 0;
-				uint64_t t = get_time_us();
-				uint32_t f = ((uint32_t)1000000 / (t - _tb));
-				_tb = t;
-				motor_B.u16_encfreq = (f + (uint32_t)motor_B.u16_encfreq*3 + f)>>2;
-				motor_B.u16_stepsin64ms++;
-				motor_B.i16_encoder++;
-				motor_B.i64_encoder += motor_B.i8_encoder_step;
+				flagb = 1;
 			}
 		}
 	}
+
+	if( flaga!=0 || flagb!=0 )
+	{
+		 t = get_time_us();
+	}
+
+	sei();	// allow other IRQs e.g. i2c
+
+	if( flaga != 0 )
+	{
+		static uint64_t _ta = 0;
+		if( _ta != 0 )
+		{
+			uint16_t p = ((t - _ta)>65536)?65536:(t - _ta);
+			motor_A.u16_encperiod	= (((uint32_t)motor_A.u16_encperiod*3) + p)>>2;
+		}
+		_ta = t;
+		motor_A.u16_stepsin64ms++;
+		motor_A.i16_encoder++;
+		motor_A.i64_encoder += motor_A.i8_encoder_step;
+	}
+
+	if( flagb != 0 )
+	{
+		static uint64_t _tb = 0;
+		if( _tb != 0 )
+		{
+			uint16_t p = ((t - _tb)>65536)?65536:(t - _tb);
+			motor_B. u16_encperiod	= (((uint32_t)motor_B.u16_encperiod*3) + p)>>2;
+		}
+		_tb = t;
+		motor_B.u16_stepsin64ms++;
+		motor_B.i16_encoder++;
+		motor_B.i64_encoder += motor_B.i8_encoder_step;
+	}
+
 }
 
 static void setModeA(uint8_t mode,uint8_t pwm)
@@ -248,7 +281,14 @@ static void setModeB(uint8_t mode,uint8_t pwm)
 
 void calcPID(Motor *m,void(*set_mode)(uint8_t mode,uint8_t pwm))
 {
-	m->pid_processValue = m->u16_encfreq;
+  if( m->u16_encperiod > 0 )
+	{
+		m->pid_processValue = 1000000 / m->u16_encperiod;
+	}
+	else
+	{
+		m->pid_processValue = 1000000/65536;
+	}
 
   if( m->pid_setPoint > 0 )
   {
@@ -306,28 +346,6 @@ void handlePID()
 	{
 		setModeA(0,0xff);
 		setModeB(0,0xff);
-	}
-}
-
-/*
- * ~64ms ISR
- */
-void TIM0_65536us()
-{
-	u8Tick = 1;
-
-	/*
-	 * update encoder frequency, without encoder ticks as well
-	 */
-	 {
- 		uint32_t f = 1000000UL * motor_A.u16_stepsin64ms / 65536;
- 		motor_A.u16_encfreq = (f + (uint32_t)motor_A.u16_encfreq*3 + f)>>2;
- 		motor_A.u16_stepsin64ms = 0;
- 	}
-	{
-		uint32_t f = 1000000UL * motor_B.u16_stepsin64ms / 65536;
-		motor_B.u16_encfreq = (f + (uint32_t)motor_B.u16_encfreq*3 + f)>>2;
-		motor_B.u16_stepsin64ms = 0;
 	}
 }
 
@@ -695,26 +713,26 @@ int main(void)
 	MODE_A(0);
 	MODE_B(0);
 
-    OCR0A = 0;
-    OCR0B = 0;
+  OCR0A = 0;
+  OCR0B = 0;
 
-    // fast PWM mode
-    TCCR0A = (1 << COM0A1) | (0 << COM0A0) |
-			 (1 << COM0B1) | (0 << COM0B0) |
-			 (1 << WGM01) | (1 << WGM00);
-    TCCR0B = (0 << CS02) | (1 << CS01) | (0 << CS00);   // clock source = CLK/8, start PWM
+  // fast PWM mode
+  TCCR0A = (1 << COM0A1) | (0 << COM0A0) |
+		 (1 << COM0B1) | (0 << COM0B0) |
+		 (1 << WGM01) | (1 << WGM00);
+  TCCR0B = (0 << CS02) | (1 << CS01) | (0 << CS00);   // clock source = CLK/8, start PWM
 
-    // Overflow Interrupt erlauben
-    TIMSK0 |= (1<<TOIE0);
+  // Overflow Interrupt erlauben
+  TIMSK0 |= (1<<TOIE0);
 
-    pid_Init(k_p,k_i,k_d, &(motor_A.pid));
-    pid_Init(k_p,k_i,k_d, &(motor_B.pid));
+  pid_Init(k_p,k_i,k_d, &(motor_A.pid));
+  pid_Init(k_p,k_i,k_d, &(motor_B.pid));
 
 #ifndef DEBUGUART
-    i2c_init();
+  i2c_init();
 #endif
 
-    sei();
+  sei();
 
 #if 0
 	motor_mode = MODE_TEST_01;
@@ -744,41 +762,62 @@ int main(void)
 	motor_test_01[7].speed_A = 0;
 	motor_test_01[7].speed_B = 0;
 	motor_test_01[7].delay_ms = 1000;
+
+#if 0
+	motor_mode = MODE_PID;
+	motor_A.pid_setPoint = -500;
+	motor_B.pid_setPoint = -500;
+#endif
+
+	wdt_enable(WDTO_8S);   // Watchdog auf 1 s stellen
+
     for(;;)
     {
-		if( u8Tick == 1 )
-		{
-			u8Tick = 0;
-			handle_motor_test_01();
-		}
+			if( u8HandlePIDFlag == 1 )
+			{
+				u8HandlePIDFlag = 0;
+				handlePID();
+			}
+
+			if( u8Tick == 1 )
+			{
+				u8Tick = 0;
+				handle_motor_test_01();
+			}
 
 #ifdef DEBUGUART
-	{
-		static uint64_t _t = 0;
-		if( u64_time_us > _t )
-		{
-			_t = u64_time_us + 3000000UL;
-#if 0
-			printf("%d,%d,%d ",
-			  (int)((int64_t)k_p*1000/128),
-			  (int)((int64_t)k_i*1000/128),
-			  (int)((int64_t)k_d*1000/128));
+			{
+				static uint64_t _t = 0;
+				if( u64_time_us > _t )
+				{
+					_t = u64_time_us + 3000000UL;
+		#if 0
+					printf("%d,%d,%d ",
+					  (int)((int64_t)k_p*1000/128),
+					  (int)((int64_t)k_i*1000/128),
+					  (int)((int64_t)k_d*1000/128));
+		#endif
+					printf("A:%3d,%3d,%4d ",
+						motor_A.pid_setPoint,
+						motor_A.pid_processValue,
+						motor_A.pid_Value);
+					printf(",%3d ",
+						motor_A.pwm);
+					printf("\n");
+				}
+			}
 #endif
-			printf("A:%3d,%3d,%4d ",
-				motor_A.pid_setPoint,
-				motor_A.pid_processValue,
-				motor_A.pid_Value);
-			printf(",%3d ",
-				motor_A.pwm);
-			printf("\n");
-		}
-	}
+#if 1
+
+			if( i2c_idle() != 0 )
+			{
+				wdt_reset();
+
+				// sleep ...
+				set_sleep_mode(SLEEP_MODE_IDLE);
+		    		sleep_mode();
+			}
 #endif
-
-
-		// sleep ...
-		set_sleep_mode(SLEEP_MODE_IDLE);
-    sleep_mode();
     }
 
     return 0;  // the program executed successfully

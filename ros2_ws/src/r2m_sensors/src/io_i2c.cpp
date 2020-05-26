@@ -10,12 +10,12 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-#if 0 
+#if 0
 char buf[10];
 extern int com_serial;
 extern int failcount;
- 
- 
+
+
 //////////
 // Set pointer address
 //////////
@@ -26,38 +26,38 @@ void i2c_set_pointer(int address,int value,int file)
     if (i2c_smbus_write_byte_data(file, address, value)<0)
         {
         fprintf(stderr, "Warning - write failed\n");
-        } 
+        }
     */
     char buf[10];
     buf[0]=address;
     buf[1]=value;
- 
+
     if (write(file, buf, 2) != 2)
         {
         fprintf(stderr, "Error setting pointer\n");
-        } 
+        }
     else
         {
         }
- 
+
     }
- 
+
 //////////
 // Read n bytes
 //////////
- 
+
 char * i2c_read(int add1, int add2, int nbytes,int file)
     {
     int n;
- 
+
     i2c_set_pointer(add1,add2,file);
- 
+
     if (read(file, buf, nbytes) != nbytes)
         {
         fprintf(stderr, "Error reading %i bytes\n",nbytes);
         com_serial=0;
         failcount++;
-        } 
+        }
     else
         {
         for (n=0;n<nbytes;n++)
@@ -132,7 +132,7 @@ int io_i2c_open(uint8_t addr)
 	printf("Failed to acquire bus access and/or talk to slave.\n");
 	return -1;
     }
-	
+
 	return fd;
 }
 

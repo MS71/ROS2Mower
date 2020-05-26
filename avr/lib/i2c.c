@@ -11,7 +11,7 @@
 #include "i2c.h"
 
 #if defined( __AVR_ATtiny167__ )
-#  define DDR_USI             DDRB 
+#  define DDR_USI             DDRB
 #  define PORT_USI            PORTB
 #  define PIN_USI             PINB
 #  define PORT_USI_SDA        PB0
@@ -202,33 +202,6 @@
        ( 0x0 << USICNT0 ); \
 }
 
-#define USI_RECEIVE_CALLBACK() \
-{ \
-    if (usi_onReceiverPtr) \
-    { \
-        if (usiTwiAmountDataInReceiveBuffer()) \
-        { \
-            usi_onReceiverPtr(usiTwiAmountDataInReceiveBuffer()); \
-        } \
-    } \
-}
-
-#if 0
-#define ONSTOP_USI_RECEIVE_CALLBACK() \
-{ \
-    if (USISR & ( 1 << USIPF )) \
-    { \
-        USI_RECEIVE_CALLBACK(); \
-    } \
-}
-
-#define USI_REQUEST_CALLBACK() \
-{ \
-    USI_RECEIVE_CALLBACK(); \
-    if(usi_onRequestPtr) usi_onRequestPtr(); \
-}
-#endif
-
 /********************************************************************************
  typedef's
 ********************************************************************************/
@@ -262,17 +235,14 @@ uint8_t usiTwiTxHandler( uint16_t idx );
 ********************************************************************************/
 ISR( USI_START_VECTOR )
 {
-  /*
   // This triggers on second write, but claims to the callback there is only *one* byte in buffer
-  ONSTOP_USI_RECEIVE_CALLBACK();
-  */
-  /*
-  // This triggers on second write, but claims to the callback there is only *one* byte in buffer
-  USI_RECEIVE_CALLBACK();
-  */
 
   // set default starting conditions for new TWI package
   overflowState = USI_SLAVE_CHECK_ADDRESS;
+
+  //unsigned char tmpUSISR;                                         // Temporary variable to store volatile
+  //tmpUSISR = USISR;                                               // Not necessary, but prevents warnings
+  //(void)tmpUSISR;
 
   // set SDA as input
   DDR_USI &= ~( 1 << PORT_USI_SDA );
@@ -289,10 +259,8 @@ ISR( USI_START_VECTOR )
        !( ( PIN_USI & ( 1 << PIN_USI_SDA ) ) )
   );
 
-
   if ( !( PIN_USI & ( 1 << PIN_USI_SDA ) ) )
   {
-
     // a Stop Condition did not occur
 
     USICR =
@@ -335,8 +303,6 @@ ISR( USI_START_VECTOR )
        ( 1 << USIPF ) |( 1 << USIDC ) |
        // set USI to sample 8 bits (count 16 external SCL pin toggles)
        ( 0x0 << USICNT0);
-
-
 } // end ISR( USI_START_VECTOR )
 
 
@@ -417,7 +383,6 @@ ISR( USI_OVERFLOW_VECTOR )
       break;
 
   } // end switch
-
 } // end ISR( USI_OVERFLOW_VECTOR )
 
 /********************************************************************************
@@ -425,6 +390,8 @@ ISR( USI_OVERFLOW_VECTOR )
 ********************************************************************************/
 // the setup function runs once when you press reset or power the board
 void i2c_init() {
+  overflowState = USI_SLAVE_CHECK_ADDRESS;
+
   // In Two Wire mode (USIWM1, USIWM0 = 1X), the slave USI will pull SCL
   // low when a start condition is detected or a counter overflow (only
   // for USIWM1, USIWM0 = 11).  This inserts a wait state.  SCL is released
@@ -460,8 +427,12 @@ void i2c_init() {
   USISR = ( 1 << USI_START_COND_INT ) | ( 1 << USIOIF ) | ( 1 << USIPF ) | ( 1 << USIDC );
 }
 
+uint8_t i2c_idle()
+{
+  return (((PIN_USI & ( 1 << PORT_USI_SCL ))!=0)&&((PIN_USI & ( 1 << PORT_USI_SDA ))!=0))?1:0;
+  //return (overflowState == USI_SLAVE_CHECK_ADDRESS)?1:0;
+}
+
 /********************************************************************************
  EOF
 ********************************************************************************/
-
-

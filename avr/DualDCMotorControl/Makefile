@@ -17,8 +17,9 @@ TWI_ADDR   = 10
 
 DEVICE     = attiny84
 CLOCK      = 8000000
-PROGRAMMER = -c usbtiny
-OBJECTS    = main.o pid.o i2c.o
+#PROGRAMMER = -c usbtiny
+PROGRAMMER = -c stk500 -P /dev/ttyACM0
+OBJECTS    = main.o pid.o ../lib/i2c.o
 ifdef DEBUGUART
 CFLAGS += -DDEBUGUART
 endif
@@ -32,7 +33,7 @@ FUSES      = -U lfuse:w:0xe2:m -U hfuse:w:0xdd:m -U efuse:w:0xfe:m
 # Tune the lines below only if you know what you are doing:
 
 AVRDUDE = avrdude $(PROGRAMMER) -p $(DEVICE)
-COMPILE = avr-gcc -Wall -Os ${CFLAGS} -DTWI_ADDR=$(TWI_ADDR) -DF_CPU=$(CLOCK) -mmcu=$(DEVICE)
+COMPILE = avr-gcc -Wall -Os ${CFLAGS} -DTWI_ADDR=$(TWI_ADDR) -DF_CPU=$(CLOCK) -mmcu=$(DEVICE) -I../lib
 
 # symbolic targets:
 all:	main.hex

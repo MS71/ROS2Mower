@@ -11,46 +11,53 @@ uint8_t pm_pwrup = 0;
 
 uint32_t pm_rtc = 0;
 
+uint32_t ubat_mv = UBAT_ON;
+
 // Watchdog Interrupt Service / is executed when watchdog timed out
 ISR(WDT_vect) 
 {
-#if 1
     uint16_t v;      
 
-    v = (u8TWIMem[TWI_MEM_SHDWNCNT+0] | (u8TWIMem[TWI_MEM_SHDWNCNT+1]<<8));
-    if( v > 0 )
+    if(digitalRead(PIN_ON)!=0)
     {
-      v--;
-      if( v == 0 )
+      // on
+      v = (u8TWIMem[TWI_MEM_SHDWNCNT+0] | (u8TWIMem[TWI_MEM_SHDWNCNT+1]<<8));
+      if( v > 0 )
       {
-        pm_shdwn = 1;
+        v--;
+        if( v == 0 )
+        {
+          pm_shdwn = 1;
+        }
+        u8TWIMem[TWI_MEM_SHDWNCNT+0] = (v>>0)&0xff; 
+        u8TWIMem[TWI_MEM_SHDWNCNT+1] = (v>>8)&0xff;
       }
-      u8TWIMem[TWI_MEM_SHDWNCNT+0] = (v>>0)&0xff;
-      u8TWIMem[TWI_MEM_SHDWNCNT+1] = (v>>8)&0xff;
     }
 
-    v = (u8TWIMem[TWI_MEM_PWRUPCNT+0] | (u8TWIMem[TWI_MEM_PWRUPCNT+1]<<8));
-    if( v > 0 )
+    if(digitalRead(PIN_ON)==0)
     {
-      v--;
-      if( v == 0 )
+      // off
+      v = (u8TWIMem[TWI_MEM_PWRUPCNT+0] | (u8TWIMem[TWI_MEM_PWRUPCNT+1]<<8));
+      if( v > 0 )
       {
-        pm_pwrup = 1;
+        v--;
+        if( v == 0 )
+        {
+          pm_pwrup = 1;
+        }
+        u8TWIMem[TWI_MEM_PWRUPCNT+0] = (v>>0)&0xff;
+        u8TWIMem[TWI_MEM_PWRUPCNT+1] = (v>>8)&0xff;
       }
-      u8TWIMem[TWI_MEM_PWRUPCNT+0] = (v>>0)&0xff;
-      u8TWIMem[TWI_MEM_PWRUPCNT+1] = (v>>8)&0xff;
     }
 
     pm_rtc++;
-#endif    
-#if 1
+
     v = (u8TWIMem[TWI_MEM_RTC+0] | (u8TWIMem[TWI_MEM_RTC+1]<<8) | (u8TWIMem[TWI_MEM_RTC+2]<<16) | (u8TWIMem[TWI_MEM_RTC+3]<<24));
     v++;
     u8TWIMem[TWI_MEM_RTC+0] = (pm_rtc>>0)&0xff;
     u8TWIMem[TWI_MEM_RTC+1] = (pm_rtc>>8)&0xff;
     u8TWIMem[TWI_MEM_RTC+2] = (pm_rtc>>16)&0xff;
     u8TWIMem[TWI_MEM_RTC+3] = (pm_rtc>>24)&0xff;
-#endif
 }
 
 // 0=16ms, 1=32ms,2=64ms,3=128ms,4=250ms,5=500ms
@@ -102,11 +109,16 @@ void pm_init()
 {
   u8TWIMem[TWI_MEM_SHDWNCNT+0] = (DEF_SHUTDOWNDELAY>>0)&0xff;
   u8TWIMem[TWI_MEM_SHDWNCNT+1] = (DEF_SHUTDOWNDELAY>>8)&0xff;
-  u8TWIMem[TWI_MEM_PWRUPCNT+0] = (DEF_POWERUPDELAY>>0)&0xff;
-  u8TWIMem[TWI_MEM_PWRUPCNT+1] = (DEF_POWERUPDELAY>>8)&0xff;
-  
+  u8TWIMem[TWI_MEM_PWRUPCNT+0] = (DEF_POWERUPDELAY_INIT>>0)&0xff;
+  u8TWIMem[TWI_MEM_PWRUPCNT+1] = (DEF_POWERUPDELAY_INIT>>8)&0xff;
+
+  u8TWIMem[TWI_MEM_SHDWNREL+0] = (DEF_SHUTDOWNDELAY>>0)&0xff;
+  u8TWIMem[TWI_MEM_SHDWNREL+1] = (DEF_SHUTDOWNDELAY>>8)&0xff;
+  u8TWIMem[TWI_MEM_PWRUPREL+0] = (DEF_POWERUPDELAY>>0)&0xff;
+  u8TWIMem[TWI_MEM_PWRUPREL+1] = (DEF_POWERUPDELAY>>8)&0xff;
+
   pinMode(PIN_ON,OUTPUT);
-  digitalWrite(PIN_ON,LOW);
+  digitalWrite(PIN_ON,LOW); // off 
 
   pinMode(PIN_IN_PMSW,INPUT);
   pinMode(PIN_IN_U1,INPUT);
@@ -151,17 +163,22 @@ uint8_t pmsw()
 void pm_loop()
 {    
     analogReference(INTERNAL2V56_NO_CAP);
-#if 1    
+
     /*
      * read the ADCs
      */
      {
-      uint32_t adc = analogRead(PIN_IN_U1);
+      uint32_t adc = analogRead(PIN_IN_U1); // ubat
       adc = (adc*2560)/1023;
       adc = (uint32_t)((float)adc * UMULTIPLYER);
       cli();
       u8TWIMem[TWI_MEM_U1+0] = (adc>>0)&0xff;
       u8TWIMem[TWI_MEM_U1+1] = (adc>>8)&0xff;
+      sei();
+      ubat_mv = ((15*ubat_mv + adc)/16);
+      cli();
+      u8TWIMem[TWI_MEM_Ubat+0] = (ubat_mv>>0)&0xff;
+      u8TWIMem[TWI_MEM_Ubat+1] = (ubat_mv>>8)&0xff;
       sei();
      }
      {
@@ -241,7 +258,6 @@ void pm_loop()
     u8TWIMem[TWI_MEM_RTC+1] = (pm_rtc>>16)&0xff;
     u8TWIMem[TWI_MEM_RTC+1] = (pm_rtc>>24)&0xff;
     sei();
-#endif
 
   uint8_t p = pmsw();
 
@@ -254,8 +270,6 @@ void pm_loop()
     // OFF and sleep
     digitalWrite(PIN_ON,LOW);
     pm_pwrup = 1;
-    u8TWIMem[TWI_MEM_SHDWNCNT+0] = (DEF_SHUTDOWNDELAY>>0)&0xff;
-    u8TWIMem[TWI_MEM_SHDWNCNT+1] = (DEF_SHUTDOWNDELAY>>8)&0xff;
   }
   else if( p == 3 )
   {
@@ -271,31 +285,36 @@ void pm_loop()
     if(digitalRead(PIN_ON)!=0)
     {
       // on
+      if( ubat_mv < UBAT_OFF)
+      {
+        pm_shdwn = 1;
+      }
       if( pm_shdwn == 1 )
       {
         pm_shdwn = 0;
         pm_pwrup = 0;
-        digitalWrite(PIN_ON,LOW);      
+
+        u8TWIMem[TWI_MEM_PWRUPCNT+0] = u8TWIMem[TWI_MEM_PWRUPREL+0];
+        u8TWIMem[TWI_MEM_PWRUPCNT+1] = u8TWIMem[TWI_MEM_PWRUPREL+1];
+        digitalWrite(PIN_ON,LOW); // switch off
       }
     }
     else
     {
       // off
-      if( pm_pwrup == 1 )
+      if(( pm_pwrup == 1 )&&( ubat_mv >= UBAT_ON))
       {
         pm_pwrup = 0;
         pm_shdwn = 0;
 
-        u8TWIMem[TWI_MEM_SHDWNCNT+0] = (DEF_SHUTDOWNDELAY>>0)&0xff;
-        u8TWIMem[TWI_MEM_SHDWNCNT+1] = (DEF_SHUTDOWNDELAY>>8)&0xff;
-        
-        digitalWrite(PIN_ON,HIGH);        
+        u8TWIMem[TWI_MEM_SHDWNCNT+0] = u8TWIMem[TWI_MEM_SHDWNREL+0];
+        u8TWIMem[TWI_MEM_SHDWNCNT+1] = u8TWIMem[TWI_MEM_SHDWNREL+1];
+        digitalWrite(PIN_ON,HIGH); // switch on
       }
     }
   }
 #endif  
 
-#if 1
   if( digitalRead(PIN_ON) == LOW )
   {
     system_sleep();
@@ -304,5 +323,4 @@ void pm_loop()
   {
     system_sleep();
   }
-#endif
 }

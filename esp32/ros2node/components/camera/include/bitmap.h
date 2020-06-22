@@ -14,7 +14,8 @@ typedef struct __attribute__((packed, aligned(1))) {
     uint32_t filesize;
     uint32_t reserved;
     uint32_t fileoffset_to_pixelarray;
-} fileheader;
+} fileheader_t;
+
 typedef struct __attribute__((packed, aligned(1))) {
     uint32_t dibheadersize;
     uint32_t width;
@@ -27,11 +28,13 @@ typedef struct __attribute__((packed, aligned(1))) {
     uint32_t xpixelpermeter;
     uint32_t numcolorspallette;
     uint32_t mostimpcolor;
-} bitmapinfoheader;
+} bitmapinfoheader_t;
+
 typedef struct {
-    fileheader fileheader;
-    bitmapinfoheader bitmapinfoheader;
+    fileheader_t fileheader;
+    bitmapinfoheader_t bitmapinfoheader;
 } bitmap_header_t;
 
 bitmap_header_t *bmp_create_header(int w, int h);
+
 #endif

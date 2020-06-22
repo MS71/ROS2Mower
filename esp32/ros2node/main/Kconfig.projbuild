@@ -72,5 +72,12 @@ config QR_RECOGNIZE
 	default y
 	help
 		Enable this option if you want to recognize qr.
+
+config ENABLE_ROS2
+	bool "Enable ROS2 Support"
+	default y
+	help
+		Enable ROS2 support
+
 endmenu
 

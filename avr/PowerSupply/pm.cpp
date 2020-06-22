@@ -11,7 +11,11 @@ uint8_t pm_pwrup = 0;
 
 uint32_t pm_rtc = 0;
 
-uint32_t ubat_mv = UBAT_ON;
+int32_t ubat_mv = UBAT_ON;
+float ibat_ma = 0;
+float isol_ma = 0;
+float ich_ma = 0;
+float iload_ma = 0;
 
 // Watchdog Interrupt Service / is executed when watchdog timed out
 ISR(WDT_vect) 
@@ -102,7 +106,6 @@ void system_sleep()
   sbi(ADCSRA,ADEN);                    // switch Analog to Digitalconverter ON
 }
 
-
 #define INTERNAL2V56_NO_CAP (6)
 
 void pm_init()
@@ -160,17 +163,53 @@ uint8_t pmsw()
   return p;
 }
 
+int16_t analogReadDiff(uint8_t adcch)
+{
+  int32_t v = 0;
+  ADMUX = ((INTERNAL1V1 & 0x03) << REFS0) | ((adcch & 0x3f) << MUX0); //select the channel and reference
+
+    sbi(ADCSRA, ADPS0);
+    sbi(ADCSRA, ADPS1);
+    sbi(ADCSRA, ADPS2);
+    cbi(ADCSRA, ADATE);
+
+    DIDR0 = 0xff;
+
+  if( adcch >= 8 ) 
+    sbi(ADCSRB, BIN);
+      else
+    cbi(ADCSRB, BIN);
+    
+  //sbi(ADCSRB, ADLAR);
+
+  sbi(ADCSRA, ADSC); //Start conversion
+  while(ADCSRA & (1<<ADSC)); //Wait for conversion to complete.
+
+  sbi(ADCSRA, ADSC); //Start conversion 
+  while(ADCSRA & (1<<ADSC)); //Wait for conversion to complete.
+
+  volatile uint8_t low = ADCL;
+  volatile uint8_t high = ADCH;
+
+  v = (high << 8) | low;
+  
+  v = v << 6;
+  v = v / 64;
+
+   return v;
+}
+
 void pm_loop()
 {    
-    analogReference(INTERNAL2V56_NO_CAP);
+    uint32_t uref_mv = 1100;
+    analogReference(INTERNAL1V1);
 
     /*
      * read the ADCs
      */
      {
-      uint32_t adc = analogRead(PIN_IN_U1); // ubat
-      adc = (adc*2560)/1023;
-      adc = (uint32_t)((float)adc * UMULTIPLYER);
+      int16_t adc = analogReadDiff(PIN_IN_U1); // ubat
+      adc = (int16_t)((float)adc * uref_mv * UMULTIPLYER / 1024);
       cli();
       u8TWIMem[TWI_MEM_U1+0] = (adc>>0)&0xff;
       u8TWIMem[TWI_MEM_U1+1] = (adc>>8)&0xff;
@@ -182,59 +221,61 @@ void pm_loop()
       sei();
      }
      {
-      uint32_t adc = analogRead(PIN_IN_U2);
-      adc = (adc*2560)/1023;
-      adc = (uint32_t)((float)adc * UMULTIPLYER);
+      int16_t adc = analogReadDiff(PIN_IN_U2);
+      adc = (int16_t)((float)adc * uref_mv * UMULTIPLYER / 1024);
       cli();
       u8TWIMem[TWI_MEM_U2+0] = (adc>>0)&0xff;
       u8TWIMem[TWI_MEM_U2+1] = (adc>>8)&0xff;
       sei();
      }
      {
-      uint32_t adc = analogRead(PIN_IN_U3);
-      adc = (adc*2560)/1023;
-      adc = (uint32_t)((float)adc * UMULTIPLYER);
+      int16_t adc = analogReadDiff(PIN_IN_U3);
+      adc = (int16_t)((float)adc * uref_mv * UMULTIPLYER / 1024);
       cli();
       u8TWIMem[TWI_MEM_U3+0] = (adc>>0)&0xff;
       u8TWIMem[TWI_MEM_U3+1] = (adc>>8)&0xff;
       sei();
      }
      {
-      uint32_t adc = analogRead(PIN_IN_U4);
-      adc = (adc*2560)/1023;
-      adc = (uint32_t)((float)adc * UMULTIPLYER);
+      int16_t adc = analogReadDiff(PIN_IN_U4);
+      adc = (int16_t)((float)adc * uref_mv * UMULTIPLYER / 1024);
       cli();
       u8TWIMem[TWI_MEM_U4+0] = (adc>>0)&0xff;
       u8TWIMem[TWI_MEM_U4+1] = (adc>>8)&0xff;
       sei();
      }
      {
-      uint32_t adc = analogRead(ADC_CH_A0_A1_20x);
-      adc = (adc*2560)/1023;
-      adc = (uint32_t)((float)adc * UMULTIPLYER);
+      int16_t adc = analogReadDiff(ADC_ISOL_CH); /* ISolar  */
+      adc += ADC_ISOL_OFFSET;
+      //adc = (int16_t)((float)adc * uref_mv * UMULTIPLYER * ADC_ISOL_MULT / ( 1.0 * 512.0 * 0.15 ) );
+      isol_ma = ((LP_N-1)*isol_ma + adc)/LP_N;
       cli();
-      u8TWIMem[TWI_MEM_I1+0] = (adc>>0)&0xff;
-      u8TWIMem[TWI_MEM_I1+1] = (adc>>8)&0xff;
+      u8TWIMem[TWI_MEM_I1+0] = (((int16_t)isol_ma)>>0)&0xff;
+      u8TWIMem[TWI_MEM_I1+1] = (((int16_t)isol_ma)>>8)&0xff;
       sei();
      }
      {
-      uint32_t adc = analogRead(ADC_CH_A0_A3_20x);
-      adc = (adc*2560)/1023;
-      adc = (uint32_t)((float)adc * UMULTIPLYER);
+      int16_t adc = (analogReadDiff(ADC_ICHARGE_CH));
+      adc += ADC_ICHARGE_OFFSET;
+      //adc = (int16_t)((float)adc * uref_mv * UMULTIPLYER * ADC_ICHARGE_MULT / ( 1.0 * 512.0 * 0.15 ) );
+      ich_ma = ((LP_N-1)*ich_ma + adc)/LP_N;
+            
       cli();
-      u8TWIMem[TWI_MEM_I2+0] = (adc>>0)&0xff;
-      u8TWIMem[TWI_MEM_I2+1] = (adc>>8)&0xff;
+      u8TWIMem[TWI_MEM_I2+0] = (((int16_t)ich_ma)>>0)&0xff;
+      u8TWIMem[TWI_MEM_I2+1] = (((int16_t)ich_ma)>>8)&0xff;
       sei();
      }
      {
-      uint32_t adc = analogRead(ADC_CH_A1_A2_20x);
-      adc = (adc*2560)/1023;
-      adc = (uint32_t)((float)adc * UMULTIPLYER);
+      int16_t adc = (analogReadDiff(ADC_IOUT_CH));
+      adc += ADC_IOUT_OFFSET;
+      //adc = (int16_t)((float)adc * uref_mv * UMULTIPLYER * ADC_IOUT_MULT / ( 1.0 * 512.0 * (0.15/3.0) ) );
+      iload_ma = ((LP_N-1)*iload_ma + adc)/LP_N;
       cli();
-      u8TWIMem[TWI_MEM_I3+0] = (adc>>0)&0xff;
-      u8TWIMem[TWI_MEM_I3+1] = (adc>>8)&0xff;
+      u8TWIMem[TWI_MEM_I3+0] = (((int16_t)iload_ma)>>0)&0xff;
+      u8TWIMem[TWI_MEM_I3+1] = (((int16_t)iload_ma)>>8)&0xff;
       sei();
      }
+
      /*
       * increment loop counter
       */

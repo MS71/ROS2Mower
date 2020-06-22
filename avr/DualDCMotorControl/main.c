@@ -55,11 +55,12 @@ typedef struct
 	uint8_t   pwm;
 
 	int16_t   i16_encoder;
-  uint16_t  u16_encperiod;
+  	uint16_t  u16_encperiod;
 	uint16_t  u16_stepsin64ms;
 
 	int64_t   i64_encoder;
 	int8_t    i8_encoder_step;
+	uint8_t   u8_encoder_flag;
 } Motor;
 
 Motor motor_A = {0};
@@ -190,7 +191,19 @@ if( (tim0_divcnt&15) == 0 )
 
   if( (tim0_divcnt) == 0 )
   {
-		TIM0_65536us();
+    if( motor_A.u8_encoder_flag == 0 )
+    {
+      motor_A.u16_encperiod = (((uint32_t)motor_A.u16_encperiod*7) + 65535)>>3;
+    }
+    motor_A.u8_encoder_flag = 0;
+
+    if( motor_B.u8_encoder_flag == 0 )
+    {
+      motor_B.u16_encperiod = (((uint32_t)motor_B.u16_encperiod*7) + 65535)>>3;
+    }
+    motor_B.u8_encoder_flag = 0;
+
+    TIM0_65536us();
   }
 }
 
@@ -242,13 +255,14 @@ ISR(PCINT0_vect)
 		static uint64_t _ta = 0;
 		if( _ta != 0 )
 		{
-			uint16_t p = ((t - _ta)>65536)?65536:(t - _ta);
-			motor_A.u16_encperiod	= (((uint32_t)motor_A.u16_encperiod*3) + p)>>2;
+			uint16_t p = ((t - _ta)>65535)?65535:(t - _ta);
+			motor_A.u16_encperiod = (((uint32_t)motor_A.u16_encperiod*7) + p)>>3;
 		}
 		_ta = t;
 		motor_A.u16_stepsin64ms++;
 		motor_A.i16_encoder++;
 		motor_A.i64_encoder += motor_A.i8_encoder_step;
+		motor_A.u8_encoder_flag = 1;
 	}
 
 	if( flagb != 0 )
@@ -256,15 +270,15 @@ ISR(PCINT0_vect)
 		static uint64_t _tb = 0;
 		if( _tb != 0 )
 		{
-			uint16_t p = ((t - _tb)>65536)?65536:(t - _tb);
-			motor_B. u16_encperiod	= (((uint32_t)motor_B.u16_encperiod*3) + p)>>2;
+			uint16_t p = ((t - _tb)>65535)?65535:(t - _tb);
+			motor_B.u16_encperiod = (((uint32_t)motor_B.u16_encperiod*7) + p)>>3;
 		}
 		_tb = t;
 		motor_B.u16_stepsin64ms++;
 		motor_B.i16_encoder++;
 		motor_B.i64_encoder += motor_B.i8_encoder_step;
+		motor_B.u8_encoder_flag = 1;
 	}
-
 }
 
 static void setModeA(uint8_t mode,uint8_t pwm)
@@ -282,50 +296,55 @@ static void setModeB(uint8_t mode,uint8_t pwm)
 void calcPID(Motor *m,void(*set_mode)(uint8_t mode,uint8_t pwm))
 {
   if( m->u16_encperiod > 0 )
-	{
-		m->pid_processValue = 1000000 / m->u16_encperiod;
-	}
-	else
-	{
-		m->pid_processValue = 1000000/65536;
-	}
+  {
+    int freq = 1000000 / m->u16_encperiod;
+    if( freq >= 0x7fff)
+    {
+      freq = 0x7fff;
+    }
+    m->pid_processValue = freq;
+  }
+  else
+  {
+    m->pid_processValue = 0x7fff;
+  }
 
   if( m->pid_setPoint > 0 )
   {
-		m->i8_encoder_step = 1;
+    m->i8_encoder_step = 1;
 
     m->pid_Value = pid_Controller(m->pid_setPoint, m->pid_processValue, &m->pid);
     m->pwm = ((((int32_t)m->pid_Value)*255)/SCALING_FACTOR);
     if( m->pid_Value > 0 )
     {
- 	    set_mode(2,m->pwm);
+      set_mode(2,m->pwm);
     }
     else
     {
-			m->pwm = 0;
- 	    set_mode(2,0);
+      m->pwm = 0;
+      set_mode(2,0);
     }
   }
   else if( m->pid_setPoint < 0 )
   {
-		m->i8_encoder_step = -1;
+     m->i8_encoder_step = -1;
 
-    m->pid_Value = pid_Controller(-m->pid_setPoint, m->pid_processValue, &m->pid);
-    m->pwm = ((((int32_t)m->pid_Value)*255)/SCALING_FACTOR);
-    if( m->pid_Value > 0 )
-    {
- 	  	set_mode(1,m->pwm);
-    }
-    else
-    {
-			m->pwm = 0;
- 	    set_mode(1,0);
-    }
+     m->pid_Value = pid_Controller(-m->pid_setPoint, m->pid_processValue, &m->pid);
+     m->pwm = ((((int32_t)m->pid_Value)*255)/SCALING_FACTOR);
+     if( m->pid_Value > 0 )
+     {
+       set_mode(1,m->pwm);
+     }
+     else
+     {
+       m->pwm = 0;
+       set_mode(1,0);
+     }
   }
   else
   {
-		m->pwm = 0;
- 	  set_mode(0,0);
+    m->pwm = 0;
+    set_mode(0,0);
   }
 }
 
@@ -472,6 +491,7 @@ void i2c_TwiRxHandler( uint16_t idx, uint8_t data )
 
 	 switch(u8TWIReg+idx)
      {
+#if 1
 		 case TWI_REG_RX(TWI_REG_U16_MODE):
 			motor_mode = 0;
 			n = TWI_REG_BYTES(TWI_REG_U16_MODE);
@@ -544,6 +564,7 @@ void i2c_TwiRxHandler( uint16_t idx, uint8_t data )
 				motor_B.pid_setPoint |= v<<((n-1-i)*8);
 			}
 		 break;
+#endif
       default:
 	     break;
      }
@@ -559,6 +580,7 @@ uint8_t i2c_TwiTxHandler( uint16_t idx )
   uint8_t v = 0;
   switch(u8TWIReg+idx)
   {
+#if 1
 	  case TWI_REG_TX(TWI_REG_U64_CLOCK_US):
 	    for(i=0;i<TWI_REG_BYTES(TWI_REG_U64_CLOCK_US);i++)
 		{
@@ -679,6 +701,7 @@ uint8_t i2c_TwiTxHandler( uint16_t idx )
 		}
 		motor_B.i16_encoder = 0;
  	  break;
+#endif
       default:
 	     break;
   }
@@ -706,7 +729,7 @@ int main(void)
 	PORTA |= (1<<PIN_ENCA);
 	PORTA |= (1<<PIN_ENCB);
 
-  PCMSK0 |= (1<<PCINT0);
+  	PCMSK0 |= (1<<PCINT0);
 	PCMSK0 |= (1<<PCINT1);
 	GIMSK  = (1<<PCIE0);
 
@@ -738,6 +761,7 @@ int main(void)
 	motor_mode = MODE_TEST_01;
 #endif
 
+#if 0
 	motor_test_01[0].speed_A = 300;
 	motor_test_01[0].speed_B = -300;
 	motor_test_01[0].delay_ms = 10000;
@@ -762,11 +786,12 @@ int main(void)
 	motor_test_01[7].speed_A = 0;
 	motor_test_01[7].speed_B = 0;
 	motor_test_01[7].delay_ms = 1000;
+#endif
 
 #if 0
 	motor_mode = MODE_PID;
-	motor_A.pid_setPoint = -500;
-	motor_B.pid_setPoint = -500;
+	motor_A.pid_setPoint = 300;
+	motor_B.pid_setPoint = 300;
 #endif
 
 	wdt_enable(WDTO_8S);   // Watchdog auf 1 s stellen
@@ -807,6 +832,7 @@ int main(void)
 				}
 			}
 #endif
+
 #if 1
 
 			if( i2c_idle() != 0 )

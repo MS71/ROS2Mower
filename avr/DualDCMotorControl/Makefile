@@ -17,8 +17,8 @@ TWI_ADDR   = 10
 
 DEVICE     = attiny84
 CLOCK      = 8000000
-#PROGRAMMER = -c usbtiny
-PROGRAMMER = -c stk500 -P /dev/ttyACM0
+PROGRAMMER = -c usbtiny
+#PROGRAMMER = -c stk500 -P /dev/ttyACM0
 OBJECTS    = main.o pid.o ../lib/i2c.o
 ifdef DEBUGUART
 CFLAGS += -DDEBUGUART

@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
+#include <math.h>
 
 #include "../components/http_server/my_http_server.h"
 #include "freertos/FreeRTOS.h"
@@ -26,8 +27,9 @@
 #include "ota_server.h"
 #include "esp_ota_ops.h"
 
-//#include "Arduino.h"
-//#include "ros2arduino.h"
+#ifdef CONFIG_ENABLE_ROS2
+#include <ros2esp.h>
+#endif
 
 #include "esp_system.h"
 #include "esp_wifi.h"
@@ -45,7 +47,10 @@
 #include "driver/sdmmc_host.h"
 #include "driver/sdspi_host.h"
 #include "sdmmc_cmd.h"
+
+extern "C" {
 #include "ulp-util.h"      // my ulp_init(), ulp_start()
+}
 
 #include "lwip/err.h"
 #include "lwip/sockets.h"
@@ -106,6 +111,8 @@ static const int CONNECTED_BIT = BIT0;
 static ip4_addr_t s_ip_addr = {};
 static uint8_t s_ip_addr_changed = 1;
 static camera_pixelformat_t s_pixel_format;
+
+int ros2_sock = -1;
 
 #define CAMERA_PIXEL_FORMAT CAMERA_PF_JPEG
 #define CAMERA_FRAME_SIZE CAMERA_FS_QVGA
@@ -269,11 +276,61 @@ uint16_t i2cnode_get_u16(uint8_t i2caddr,uint8_t addr)
 		i2c_master_write_byte( CommandHandle, ( i2caddr << 1 ) | I2C_MASTER_WRITE, true);
 		i2c_master_write_byte( CommandHandle, addr, true);
 		i2c_master_start(CommandHandle);
-		i2c_master_write_byte( CommandHandle, ( PWRNODE_I2C_ADDR << 1 ) | I2C_MASTER_READ, true);
+		i2c_master_write_byte( CommandHandle, ( i2caddr << 1 ) | I2C_MASTER_READ, true);
 		i2c_master_read(CommandHandle, tmpbuf, 2, (i2c_ack_type_t)0x02);
 		i2c_master_stop( CommandHandle );
 		i2c_master_cmd_begin((i2c_port_t)I2C_BUS_PORT, CommandHandle, pdMS_TO_TICKS( 10 ));
 		i2c_cmd_link_delete( CommandHandle );
+		v |= (tmpbuf[1]<<8);
+		v |= (tmpbuf[0]<<0);
+	}
+	return v;
+}
+
+int16_t i2cnode_get_i16(uint8_t i2caddr,uint8_t addr)
+{
+	int16_t v = 0;
+	i2c_cmd_handle_t CommandHandle = NULL;
+	if ( ( CommandHandle = i2c_cmd_link_create( ) ) != NULL )
+	{
+		uint8_t tmpbuf[2] = {};
+		i2c_master_start( CommandHandle );
+		i2c_master_write_byte( CommandHandle, ( i2caddr << 1 ) | I2C_MASTER_WRITE, true);
+		i2c_master_write_byte( CommandHandle, addr, true);
+		i2c_master_start(CommandHandle);
+		i2c_master_write_byte( CommandHandle, ( i2caddr << 1 ) | I2C_MASTER_READ, true);
+		i2c_master_read(CommandHandle, tmpbuf, 2, (i2c_ack_type_t)0x02);
+		i2c_master_stop( CommandHandle );
+		i2c_master_cmd_begin((i2c_port_t)I2C_BUS_PORT, CommandHandle, pdMS_TO_TICKS( 10 ));
+		i2c_cmd_link_delete( CommandHandle );
+		v |= (tmpbuf[1]<<8);
+		v |= (tmpbuf[0]<<0);
+	}
+	return v;
+}
+
+int64_t i2cnode_get_i64(uint8_t i2caddr,uint8_t addr)
+{
+	int64_t v = 0;
+	i2c_cmd_handle_t CommandHandle = NULL;
+	if ( ( CommandHandle = i2c_cmd_link_create( ) ) != NULL )
+	{
+		uint8_t tmpbuf[8] = {};
+		i2c_master_start( CommandHandle );
+		i2c_master_write_byte( CommandHandle, ( i2caddr << 1 ) | I2C_MASTER_WRITE, true);
+		i2c_master_write_byte( CommandHandle, addr, true);
+		i2c_master_start(CommandHandle);
+		i2c_master_write_byte( CommandHandle, ( i2caddr << 1 ) | I2C_MASTER_READ, true);
+		i2c_master_read(CommandHandle, tmpbuf, 8, (i2c_ack_type_t)0x02);
+		i2c_master_stop( CommandHandle );
+		i2c_master_cmd_begin((i2c_port_t)I2C_BUS_PORT, CommandHandle, pdMS_TO_TICKS( 10 ));
+		i2c_cmd_link_delete( CommandHandle );
+		v |= (tmpbuf[7]<<56);
+		v |= (tmpbuf[6]<<48);
+		v |= (tmpbuf[5]<<40);
+		v |= (tmpbuf[4]<<32);
+		v |= (tmpbuf[3]<<24);
+		v |= (tmpbuf[2]<<16);
 		v |= (tmpbuf[1]<<8);
 		v |= (tmpbuf[0]<<0);
 	}
@@ -291,7 +348,7 @@ uint32_t i2cnode_get_u32(uint8_t i2caddr,uint8_t addr)
 		i2c_master_write_byte( CommandHandle, ( i2caddr << 1 ) | I2C_MASTER_WRITE, true);
 		i2c_master_write_byte( CommandHandle, addr, true);
 		i2c_master_start(CommandHandle);
-		i2c_master_write_byte( CommandHandle, ( PWRNODE_I2C_ADDR << 1 ) | I2C_MASTER_READ, true);
+		i2c_master_write_byte( CommandHandle, ( i2caddr << 1 ) | I2C_MASTER_READ, true);
 		i2c_master_read(CommandHandle, tmpbuf, 4, (i2c_ack_type_t)0x02);
 		i2c_master_stop( CommandHandle );
 		i2c_master_cmd_begin((i2c_port_t)I2C_BUS_PORT, CommandHandle, pdMS_TO_TICKS( 10 ));
@@ -309,7 +366,6 @@ void i2cnode_set_i16(uint8_t i2caddr,uint8_t addr,int16_t v)
 	i2c_cmd_handle_t CommandHandle = NULL;
 	if ( ( CommandHandle = i2c_cmd_link_create( ) ) != NULL )
 	{
-		uint8_t tmpbuf[2] = {};
 		i2c_master_start( CommandHandle );
 		i2c_master_write_byte( CommandHandle, ( i2caddr << 1 ) | I2C_MASTER_WRITE, true);
 		i2c_master_write_byte( CommandHandle, addr, true);
@@ -322,11 +378,29 @@ void i2cnode_set_i16(uint8_t i2caddr,uint8_t addr,int16_t v)
 
 }
 
+void i2cnode_set_u16(uint8_t i2caddr,uint8_t addr,uint16_t v)
+{
+	i2c_cmd_handle_t CommandHandle = NULL;
+	if ( ( CommandHandle = i2c_cmd_link_create( ) ) != NULL )
+	{
+		i2c_master_start( CommandHandle );
+		i2c_master_write_byte( CommandHandle, ( i2caddr << 1 ) | I2C_MASTER_WRITE, true);
+		i2c_master_write_byte( CommandHandle, addr, true);
+		i2c_master_write_byte( CommandHandle, (v>>0)&0xff, true);
+		i2c_master_write_byte( CommandHandle, (v>>8)&0xff, true);
+		i2c_master_stop( CommandHandle );
+		i2c_master_cmd_begin((i2c_port_t)I2C_BUS_PORT, CommandHandle, pdMS_TO_TICKS( 10 ));
+		i2c_cmd_link_delete( CommandHandle );
+	}
+
+}
+
+
 static const int SSD1306_I2C_COMMAND_MODE = 0x80;
 static const int SSD1306_I2C_DATA_MODE = 0x40;
 
 static bool I2CDefaultWriteBytes( int Address, bool IsCommand, const uint8_t* Data, size_t DataLength ) {
-	i2c_cmd_handle_t* CommandHandle = NULL;
+	i2c_cmd_handle_t CommandHandle = NULL;
 	static uint8_t ModeByte = 0;
 
 	NullCheck( Data, return false );
@@ -340,7 +414,7 @@ static bool I2CDefaultWriteBytes( int Address, bool IsCommand, const uint8_t* Da
 		ESP_ERROR_CHECK_NONFATAL( i2c_master_write( CommandHandle, ( uint8_t* ) Data, DataLength, true ), return false );
 		ESP_ERROR_CHECK_NONFATAL( i2c_master_stop( CommandHandle ), return false );
 
-		ESP_ERROR_CHECK_NONFATAL( i2c_master_cmd_begin( (i2c_port_t)I2C_BUS_PORT, CommandHandle, pdMS_TO_TICKS( 1000 ) ), return false );
+		i2c_master_cmd_begin( (i2c_port_t)I2C_BUS_PORT, CommandHandle, pdMS_TO_TICKS( 10 ) );
 		i2c_cmd_link_delete( CommandHandle );
 	}
 
@@ -365,16 +439,115 @@ static bool I2CDefaultReset( struct SSD1306_Device* Display ) {
 	return true;
 }
 
+#ifdef CONFIG_ENABLE_ROS2
+#define ROS2_NODENAME "ros2mower"
+
+ros2::Publisher<std_msgs::String>* string_pub = NULL;
+ros2::Publisher<std_msgs::Float32>* pub_ubat = NULL;
+ros2::Publisher<std_msgs::Float32>* pub_isolar = NULL;
+ros2::Publisher<std_msgs::Float32>* pub_iout = NULL;
+ros2::Publisher<std_msgs::Float32>* pub_icharge = NULL;
+
+ros2::Publisher<std_msgs::Int64>* pub_motor_l_enc = NULL;
+ros2::Publisher<std_msgs::Int16>* pub_motor_l_pid_sv = NULL;
+ros2::Publisher<std_msgs::Int16>* pub_motor_l_pid_ov = NULL;
+ros2::Publisher<std_msgs::Int16>* pub_motor_l_pid_pv = NULL;
+
+ros2::Publisher<std_msgs::Int64>* pub_motor_r_enc = NULL;
+ros2::Publisher<std_msgs::Int16>* pub_motor_r_pid_sv = NULL;
+ros2::Publisher<std_msgs::Int16>* pub_motor_r_pid_ov = NULL;
+ros2::Publisher<std_msgs::Int16>* pub_motor_r_pid_pv = NULL;
+
+ros2::Subscriber<geometry_msgs::Twist> *sub_cmdvel = NULL;
+
+void cmd_vel_callback2(double linear_x, double linear_y, double angular_z)
+{
+	double wheel0_speed = 0;
+	double wheel1_speed = 0;
+
+	double wheelbase_ = 0.112;
+
+	// *** Compute the current wheel speeds ***
+	// First compute the Robot's linear and angular speeds
+	double xspeed = linear_x;
+	double yspeed = linear_y;
+	double linear_speed = sqrt (xspeed * xspeed + yspeed * yspeed);
+	double angular_speed = angular_z;
+
+	if( linear_x >= 0 )
+	{
+		// robot is moving forward
+		wheel0_speed = linear_speed + angular_speed * wheelbase_ / 2.0;
+		wheel1_speed = linear_speed - angular_speed * wheelbase_ / 2.0;
+	}
+	else
+	{
+		// robot is backing up
+		wheel0_speed = -linear_speed + angular_speed * wheelbase_ / 2.0;
+		wheel1_speed = -linear_speed - angular_speed * wheelbase_ / 2.0;
+	}
+
+	i2cnode_set_i16(MOTORNODE_I2C_ADDR,0x20,500*wheel0_speed);
+	i2cnode_set_i16(MOTORNODE_I2C_ADDR,0x40,500*wheel1_speed);	
+
+	ESP_LOGI(TAG, "cmd_vel_callback() %f %f",wheel0_speed,wheel1_speed);
+}
+
+void cmd_vel_callback(const geometry_msgs::Twist& vel_cmd,void* arg)
+{
+  cmd_vel_callback2(vel_cmd.linear.x,vel_cmd.linear.y,vel_cmd.angular.z);
+}
+#endif
+
+bool ros2ready( ros2::Node *ros2node )
+{
+	if( ros2node->getNodeRegisteredState() )
+	{
+  	  if( pub_ubat == NULL )
+	  {
+       	    ESP_LOGI(TAG, "ros2ready() => connected");
+	    pub_ubat = ros2node->createPublisher<std_msgs::Float32>(ROS2_NODENAME "/ubat");    
+	    pub_isolar = ros2node->createPublisher<std_msgs::Float32>(ROS2_NODENAME "/isolar");    
+	    pub_iout = ros2node->createPublisher<std_msgs::Float32>(ROS2_NODENAME "/iout");    
+	    pub_icharge = ros2node->createPublisher<std_msgs::Float32>(ROS2_NODENAME "/icharge");        
+	    pub_motor_l_enc = ros2node->createPublisher<std_msgs::Int64>(ROS2_NODENAME "/motor_l_enc");
+	    pub_motor_l_pid_sv = ros2node->createPublisher<std_msgs::Int16>(ROS2_NODENAME "/motor_l_pid_sv");
+	    pub_motor_l_pid_ov = ros2node->createPublisher<std_msgs::Int16>(ROS2_NODENAME "/motor_l_pid_ov");
+	    pub_motor_l_pid_pv = ros2node->createPublisher<std_msgs::Int16>(ROS2_NODENAME "/motor_l_pid_pv");
+	    pub_motor_r_enc = ros2node->createPublisher<std_msgs::Int64>(ROS2_NODENAME "/motor_r_enc");	
+	    pub_motor_r_pid_sv = ros2node->createPublisher<std_msgs::Int16>(ROS2_NODENAME "/motor_r_pid_sv");
+	    pub_motor_r_pid_ov = ros2node->createPublisher<std_msgs::Int16>(ROS2_NODENAME "/motor_r_pid_ov");
+  	    pub_motor_r_pid_pv = ros2node->createPublisher<std_msgs::Int16>(ROS2_NODENAME "/motor_r_pid_pv");
+	    sub_cmdvel = ros2node->createSubscriber<geometry_msgs::Twist>( "cmd_vel", (ros2::CallbackFunc)cmd_vel_callback, NULL);
+          }
+	  return true;
+	}
+	else
+	{
+  	  if( pub_ubat != NULL )
+	  {
+	   ESP_LOGI(TAG, "ros2ready() => disconnected");
+	   ros2node->deletePublisher(ROS2_NODENAME "/ubat"); pub_ubat = NULL;
+	  }
+	}
+  return false;
+}
+
 static void i2c_task(void * param)
 {
+#ifdef CONFIG_ENABLE_ROS2
+	static ros2::Node ros2node(ROS2_NODENAME);
+#endif
+
 	char tmpstr[64] = "";
 	int tmpcnt = 0;
 
-	//zumo_led(0,0,0);
-	//zumo_motor_set_speed(10,10);
-	//zumo_beep(400,2000,15);
-
 	ESP_LOGI(TAG, "main() display init ...");
+
+	i2cnode_set_i16(MOTORNODE_I2C_ADDR,0x08,2);
+	i2cnode_set_i16(MOTORNODE_I2C_ADDR,0x20,0);
+	i2cnode_set_i16(MOTORNODE_I2C_ADDR,0x40,0);
+
 	SSD1306_Init_I2C( &I2CDisplay,
 		128, 64,
 		0x78>>1, -1,
@@ -383,12 +556,18 @@ static void i2c_task(void * param)
 		I2CDefaultReset);
 		SSD1306_DisplayOn( &I2CDisplay );
 
-		i2cnode_set_i16(MOTORNODE_I2C_ADDR,0x08,2);
-		i2cnode_set_i16(MOTORNODE_I2C_ADDR,0x20,0);
-		i2cnode_set_i16(MOTORNODE_I2C_ADDR,0x40,0);
-
 		while(1)
 		{
+			uint16_t ubat_mV = i2cnode_get_u16(PWRNODE_I2C_ADDR,0x28);
+			int16_t isolar_mA = i2cnode_get_i16(PWRNODE_I2C_ADDR,0x30);
+			int16_t iout_mA = i2cnode_get_i16(PWRNODE_I2C_ADDR,0x32);
+			int16_t icharge_mA = i2cnode_get_i16(PWRNODE_I2C_ADDR,0x34);
+
+			int64_t motor_l_enc = i2cnode_get_i64(MOTORNODE_I2C_ADDR,0x30);
+			int64_t motor_r_enc = i2cnode_get_i64(MOTORNODE_I2C_ADDR,0x50);
+
+			i2cnode_set_u16(MOTORNODE_I2C_ADDR,0x0A,0xffff); // TWI_REG_U16_AUTOBREAK
+
 			int y = 0;
 			int s = 5;
 			SSD1306_Clear( &I2CDisplay, SSD_COLOR_BLACK );
@@ -414,17 +593,64 @@ static void i2c_task(void * param)
 			y += (s+7);
 
 			SSD1306_SetFont( &I2CDisplay, &Font_droid_sans_mono_13x24 );
-			sprintf(tmpstr,"Ub:%2.2fV",i2cnode_get_u16(PWRNODE_I2C_ADDR,0x28)/1000.0);
+			sprintf(tmpstr,"Ub:%2.2fV",ubat_mV/1000.0);
 			SSD1306_FontDrawString( &I2CDisplay, 0, y, tmpstr, SSD_COLOR_WHITE );
 			y += (s+13);
 
-			sprintf(tmpstr,"Ib:%d",i2cnode_get_u16(PWRNODE_I2C_ADDR,0x32)/20);
+			SSD1306_SetFont( &I2CDisplay, &Font_droid_sans_fallback_15x17 );
+			sprintf(tmpstr,"I: %3d %3d %4d",
+				isolar_mA,
+				iout_mA,
+				icharge_mA);
 			SSD1306_FontDrawString( &I2CDisplay, 0, y, tmpstr, SSD_COLOR_WHITE );
 			y += (s+13);
 
 			SSD1306_Update( &I2CDisplay );
+			
 
-			vTaskDelay(100 / portTICK_PERIOD_MS);
+#ifdef CONFIG_ENABLE_ROS2
+			if( ros2ready(&ros2node) )
+			{
+			{
+			  auto msg_ubat = std_msgs::Float32();
+			  msg_ubat.data = ubat_mV/1000.0;  
+			  if(pub_ubat!=NULL) pub_ubat->publish(&msg_ubat);
+			}
+			{
+			  auto msg_i = std_msgs::Float32();
+			  msg_i.data = isolar_mA/1000.0; 
+			  if(pub_isolar!=NULL) pub_isolar->publish(&msg_i);
+			  msg_i.data = iout_mA/1000.0; 
+			  if(pub_iout!=NULL) pub_iout->publish(&msg_i);
+			  msg_i.data = icharge_mA/1000.0; 
+			  if(pub_icharge!=NULL) pub_icharge->publish(&msg_i);
+			}
+			{
+			  auto msg = std_msgs::Int64();
+			  msg.data = motor_l_enc; 
+			  if(pub_motor_l_enc!=NULL) pub_motor_l_enc->publish(&msg);
+			  msg.data = motor_r_enc; 
+			  if(pub_motor_r_enc!=NULL) pub_motor_r_enc->publish(&msg);
+			}
+			{
+			  auto msg = std_msgs::Int16();
+			  msg.data = i2cnode_get_i16(MOTORNODE_I2C_ADDR,0x20); 
+			  if(pub_motor_l_pid_sv!=NULL) pub_motor_l_pid_sv->publish(&msg);
+			  msg.data = i2cnode_get_i16(MOTORNODE_I2C_ADDR,0x24); 
+			  if(pub_motor_l_pid_ov!=NULL) pub_motor_l_pid_ov->publish(&msg);
+			  msg.data = i2cnode_get_i16(MOTORNODE_I2C_ADDR,0x22); 
+			  if(pub_motor_l_pid_pv!=NULL) pub_motor_l_pid_pv->publish(&msg);
+			  msg.data = i2cnode_get_i16(MOTORNODE_I2C_ADDR,0x40); 
+			  if(pub_motor_r_pid_sv!=NULL) pub_motor_r_pid_sv->publish(&msg);
+			  msg.data = i2cnode_get_i16(MOTORNODE_I2C_ADDR,0x44); 
+			  if(pub_motor_r_pid_ov!=NULL) pub_motor_r_pid_ov->publish(&msg);
+			  msg.data = i2cnode_get_i16(MOTORNODE_I2C_ADDR,0x42); 
+			  if(pub_motor_r_pid_pv!=NULL) pub_motor_r_pid_pv->publish(&msg);
+			}
+			}
+			ros2::spin(&ros2node);
+#endif
+			vTaskDelay(50 / portTICK_PERIOD_MS);
 		}
 		vTaskDelete(NULL);
 	}
@@ -567,6 +793,11 @@ static void i2c_task(void * param)
 		return 0;
 	}
 
+
+extern "C" {
+	void app_main();
+}
+
 	void app_main()
 	{
 		/* Print chip information */
@@ -600,6 +831,10 @@ static void i2c_task(void * param)
 
 		initialise_wifi();
 		xTaskCreate(&ota_server_task, "ota_server_task", 4096, NULL, 5, NULL);
+
+#ifdef CONFIG_ENABLE_ROS2
+  		ros2::init(ros2_sock, "z600", 2018);
+#endif
 
 		#if 0
 		#ifndef USE_SPI_MODE
@@ -705,13 +940,12 @@ static void i2c_task(void * param)
 		ESP_LOGI(TAG, "main() i2c init ...");
 		static i2c_config_t Config;
 		memset( &Config, 0, sizeof( i2c_config_t ) );
-		Config.mode = I2C_MODE_MASTER;
-		//Config.sda_io_num = (gpio_num_t)4;
-		Config.sda_io_num = (gpio_num_t)13;
+		Config.mode = I2C_MODE_MASTER;		
+		Config.sda_io_num = (gpio_num_t)13;		
 		Config.sda_pullup_en = GPIO_PULLUP_ENABLE;
 		Config.scl_io_num = (gpio_num_t)12;
 		Config.scl_pullup_en = GPIO_PULLUP_ENABLE;
-		Config.master.clk_speed = 500000;
+		Config.master.clk_speed = 200000;
 		i2c_param_config( (i2c_port_t)I2C_BUS_PORT, &Config );
 		i2c_driver_install( (i2c_port_t)I2C_BUS_PORT, Config.mode, 0, 0, 0 );
 		i2c_set_timeout((i2c_port_t)I2C_BUS_PORT, (I2C_APB_CLK_FREQ / Config.master.clk_speed)*1024);
@@ -829,6 +1063,20 @@ static void i2c_task(void * param)
 
 		xTaskCreate(tcp_server_task, "tcp_server", 4096, NULL, 5, NULL);
 
+#if 0
+		ESP_LOGI(TAG, "init ros2 ...");
+  		ros2::init(ros2_sock, "z600", 2018);
+		
+		static StringPub StringNode;
+
+		while(1)
+		{
+			ESP_LOGI(TAG, "calling ros2::spin ...");
+			ros2::spin(&StringNode);
+			vTaskDelay(10 / portTICK_PERIOD_MS);
+		}
+#endif
+
 		ESP_LOGI(TAG, "... init done. free heap: %u", xPortGetFreeHeapSize());
 	}
 
@@ -867,7 +1115,7 @@ static void i2c_task(void * param)
 		http_response_end(http_ctx);
 		ESP_LOGI(TAG, "Free heap: %u", xPortGetFreeHeapSize());
 		#if CONFIG_QR_RECOGNIZE
-		camera_config_t *camera_config = ctx;
+		camera_config_t *camera_config = (camera_config_t*)ctx;
 		xTaskCreate(qr_recoginze, "qr_recoginze", 111500, camera_config, 5, NULL);
 		#endif
 	}
@@ -1023,10 +1271,11 @@ static void i2c_task(void * param)
 		//    ESP_ERROR_CHECK( esp_wifi_set_storage(WIFI_STORAGE_RAM) );
 		wifi_config_t wifi_config = {
 			.sta = {
-				.ssid = CONFIG_WIFI_SSID,
-				.password = CONFIG_WIFI_PASSWORD,
+					{.ssid = CONFIG_WIFI_SSID},
+					{.password = CONFIG_WIFI_PASSWORD},
 			},
 		};
+    		
 		ESP_ERROR_CHECK( esp_wifi_set_mode(WIFI_MODE_STA) );
 		ESP_ERROR_CHECK( esp_wifi_set_config(WIFI_IF_STA, &wifi_config) );
 		ESP_ERROR_CHECK( esp_wifi_start() );

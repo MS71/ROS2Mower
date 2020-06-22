@@ -49,21 +49,35 @@
 #define PIN_FON          10
 #define PIN_IN_PMSW      A7
 
+#define LP_N             100
+
 //((270.0+47.0)/47.0)
 //#define UMULTIPLYER   (1.32*1247.0/0x175)
-#define UMULTIPLYER     (9.781)
+//#define UMULTIPLYER     (9.781)
+//#define UMULTIPLYER     ((270.0+47.0)/47.0)
+//#define UMULTIPLYER     (122000.0/5486.0)
+//#define UMULTIPLYER     (1)
+#define UMULTIPLYER     (1047.0/47.0)
 
 #define UBAT_ON          12400
 #define UBAT_OFF         11000
 
-#define PIN_IN_U1       A0  /* UBat    */
-#define PIN_IN_U2       A1  /* USolar  */
-#define PIN_IN_U3       A2  /* UOut    */
-#define PIN_IN_U4       A3  /* UCharge */
+#define PIN_IN_U1         3  /* UBat    */
+#define PIN_IN_U2         1  /* USolar  */
+#define PIN_IN_U3         2  /* UOut    */
+#define PIN_IN_U4         0  /* UCharge */
 
-#define ADC_CH_A0_A1_20x  9   /* ISolar  */
-#define ADC_CH_A0_A3_20x  11  /* ICharge */
-#define ADC_CH_A1_A2_20x  13  /* IOut    */
+#define ADC_ISOL_CH         (0b101111)  /* ISolar: 20* ADC3-ADC1 */
+#define ADC_ISOL_OFFSET     0 
+#define ADC_ISOL_MULT       (- 1.0/20.0)
+
+#define ADC_ICHARGE_CH      (0b101011)  /* ICharge: 20* ADC3-ADC0 */
+#define ADC_ICHARGE_OFFSET  0
+#define ADC_ICHARGE_MULT    (- 1.0/20.0)
+
+#define ADC_IOUT_CH         (0b110001)  /* IOut: 20* ADC3-ADC2 */
+#define ADC_IOUT_OFFSET     0
+#define ADC_IOUT_MULT       (1.0/20.0)
 
 //#define PMSW_A  (0x1fa+((0x390-0x1fa)/2))
 //#define PMSW_B  (0x390+((0x3ff-0x390)/2))

@@ -12,7 +12,7 @@ bitmap_header_t *bmp_create_header(int w, int h)
 	strcpy((char*)pbitmap->fileheader.signature, "BM");
 	pbitmap->fileheader.filesize = _filesize;
 	pbitmap->fileheader.fileoffset_to_pixelarray = sizeof(bitmap_header_t);
-	pbitmap->bitmapinfoheader.dibheadersize = sizeof(bitmapinfoheader);
+	pbitmap->bitmapinfoheader.dibheadersize = sizeof(bitmapinfoheader_t);
 	pbitmap->bitmapinfoheader.width = w;
 	pbitmap->bitmapinfoheader.height = h;
 	pbitmap->bitmapinfoheader.planes = _planes;

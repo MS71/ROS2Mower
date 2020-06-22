@@ -1,0 +1,42 @@
+#######################################
+# Syntax Coloring Map For ros2arduino
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+Node	KEYWORD1
+Publisher	KEYWORD1
+Subscriber	KEYWORD1
+CallbackFunc	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+init	KEYWORD2
+spin	KEYWORD2
+
+createPublisher	KEYWORD2
+createSubscriber	KEYWORD2
+createWallFreq	KEYWORD2
+createWallTimer	KEYWORD2
+
+#######################################
+# Structures (KEYWORD3)
+#######################################
+# namespace
+ros2	KEYWORD3
+
+#######################################
+# Constants (LITERAL1)
+#######################################
+USER_TRANSPORT_TYPE	LITERAL1
+USER_TRANSPORT_TYPE_UDP	LITERAL1
+USER_TRANSPORT_TYPE_TCP	LITERAL1
+USER_TRANSPORT_TYPE_SERIAL	LITERAL1
+USER_TRANSPORT_MTU	LITERAL1
+USER_ROS2_PUBLISHER_MAX	LITERAL1
+USER_ROS2_SUBSCRIBER_MAX	LITERAL1
+UXR_CREATE_ENTITIES_USING_REF	LITERAL1

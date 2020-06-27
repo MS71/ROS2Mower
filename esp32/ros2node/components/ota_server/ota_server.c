@@ -94,6 +94,7 @@ void ota_server_start()
     bool is_req_body_started = false;
     int content_length = -1;
     int content_received = 0;
+	int n=0;
 
     esp_ota_handle_t ota_handle;
     do {
@@ -103,7 +104,7 @@ void ota_server_start()
                 const char *content_length_start = "Content-Length: ";
                 char *content_length_start_p = strstr(ota_buff, content_length_start) + strlen(content_length_start);
                 sscanf(content_length_start_p, "%d", &content_length);
-                ESP_LOGI(TAG, "Detected content length: %d", content_length);
+                ESP_LOGW(TAG, "Detected content length: %d", content_length);
                 ESP_ERROR_CHECK( esp_ota_begin(update_partition, OTA_SIZE_UNKNOWN, &ota_handle) );
                 const char *header_end = "\r\n\r\n";
                 char *body_start_p = strstr(ota_buff, header_end) + strlen(header_end);
@@ -114,6 +115,10 @@ void ota_server_start()
             } else {
                 esp_ota_write(ota_handle, ota_buff, recv_len);
                 content_received += recv_len;
+				if( ((n++) & 63) == 0 )
+				{
+					ESP_LOGW(TAG, "... %d ...", content_received);
+				}
             }
         }
         else if (recv_len < 0) {
@@ -121,7 +126,7 @@ void ota_server_start()
         }
     } while (recv_len > 0 && content_received < content_length);
 
-    ESP_LOGI(TAG, "Binary transferred finished: %d bytes", content_received);
+    ESP_LOGW(TAG, "Binary transferred finished: %d bytes", content_received);
 
     ESP_ERROR_CHECK( esp_ota_end(ota_handle) );
     esp_err_t err = esp_ota_set_boot_partition(update_partition);
@@ -136,9 +141,9 @@ void ota_server_start()
     close(connect_socket);
 
     const esp_partition_t *boot_partition = esp_ota_get_boot_partition();
-    ESP_LOGI(TAG, "Next boot partition subtype %d at offset 0x%x",
+    ESP_LOGW(TAG, "Next boot partition subtype %d at offset 0x%x",
     	boot_partition->subtype, boot_partition->address);
-    ESP_LOGI(TAG, "Prepare to restart system!");
+    ESP_LOGW(TAG, "Prepare to restart system!");
     esp_log_set_vprintf(ota_log);
     esp_restart();
 }

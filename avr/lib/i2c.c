@@ -146,10 +146,10 @@
 
 #define SET_USI_TO_READ_ACK( ) \
 { \
-  /* set SDA as input */ \
-  DDR_USI &= ~( 1 << PORT_USI_SDA ); \
   /* prepare ACK */ \
   USIDR = 0; \
+  /* set SDA as input */ \
+  DDR_USI &= ~( 1 << PORT_USI_SDA ); \
   /* clear all interrupt flags, except Start Cond */ \
   USISR = \
        ( 0 << USI_START_COND_INT ) | \
@@ -245,6 +245,7 @@ ISR( USI_START_VECTOR )
   //(void)tmpUSISR;
 
   // set SDA as input
+  PORT_USI |= ( 1 << PORT_USI_SDA );  // Set SDA high
   DDR_USI &= ~( 1 << PORT_USI_SDA );
 
   // wait for SCL to go low to ensure the Start Condition has completed (the
@@ -331,6 +332,8 @@ ISR( USI_OVERFLOW_VECTOR )
         {
           overflowState = USI_SLAVE_REQUEST_DATA;
         } // end if
+        
+        //PORT_USI &= ~( 1 << PORT_USI_SDA );  // Set SDA high
         SET_USI_TO_SEND_ACK( );
       }
       else

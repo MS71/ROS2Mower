@@ -25,7 +25,7 @@ CFLAGS += -DDEBUGUART
 endif
 
 #http://www.engbedded.com/fusecalc/
-FUSES      = -U lfuse:w:0xe2:m -U hfuse:w:0xdd:m -U efuse:w:0xfe:m
+FUSES      = -U lfuse:w:0xd2:m -U hfuse:w:0xde:m -U efuse:w:0xfe:m
 
 ######################################################################
 ######################################################################

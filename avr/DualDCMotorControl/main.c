@@ -10,6 +10,7 @@
 #include <stdbool.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <avr/eeprom.h>
 
 #include "pid.h"
 
@@ -25,26 +26,39 @@
 #define PIN_PWMB	PB2
 #define PIN_INT  	PA5
 
+#define USE_T1
+
 #define INTOUT(_v_) \
-	DDRA |= (1<<PIN_INT); \
-	PORTA = (PORTA & ~(1<<PIN_INT)) | ((((_v_)>>0)&1)<<PIN_INT); \
+    { \
+	  DDRA |= (1<<PIN_INT); \
+      PORTA = (PORTA & ~(1<<PIN_INT)) | ((((_v_)>>0)&1)<<PIN_INT); \
+	}
 
 #define MODE_B(_m_) \
-	DDRA |= (1<<PIN_INA1) | (1<<PIN_INA2); \
-	PORTA = (PORTA & ~(1<<PIN_INA1)) | ((((_m_)>>0)&1)<<PIN_INA1); \
-	PORTA = (PORTA & ~(1<<PIN_INA2)) | ((((_m_)>>1)&1)<<PIN_INA2);
+    { \
+	  DDRA |= (1<<PIN_INA1) | (1<<PIN_INA2); \
+	  PORTA = (PORTA & ~(1<<PIN_INA1)) | ((((_m_)>>0)&1)<<PIN_INA1); \
+	  PORTA = (PORTA & ~(1<<PIN_INA2)) | ((((_m_)>>1)&1)<<PIN_INA2); \
+	}
 
 #define MODE_A(_m_) \
-	DDRB |= (1<<PIN_INB1) | (1<<PIN_INB2); \
-	PORTB = (PORTB & ~(1<<PIN_INB1)) | ((((_m_)>>0)&1)<<PIN_INB1); \
-	PORTB = (PORTB & ~(1<<PIN_INB2)) | ((((_m_)>>1)&1)<<PIN_INB2);
+    { \
+	  DDRB |= (1<<PIN_INB1) | (1<<PIN_INB2); \
+	  PORTB = (PORTB & ~(1<<PIN_INB1)) | ((((_m_)>>0)&1)<<PIN_INB1); \
+	  PORTB = (PORTB & ~(1<<PIN_INB2)) | ((((_m_)>>1)&1)<<PIN_INB2); \
+	}
 
 #define TOGGLE_PIN(_port_,_pin_) \
 	_port_ = (_port_&(~(1<<(_pin_)))) | ((~(_port_))&(1<<(_pin_)))
 
-int16_t k_p = (int16_t)((0.5)*SCALING_FACTOR);
+int16_t k_p = (int16_t)((0.50)*SCALING_FACTOR);
 int16_t k_i = (int16_t)((0.01)*SCALING_FACTOR);
 int16_t k_d = (int16_t)((0.0)*SCALING_FACTOR);
+
+uint8_t main_loop_int_pulse = 0;
+uint8_t i2c_wdt_reset = 0;
+uint16_t boot_counter = 0;
+uint16_t eeFooByteArray1[1] EEMEM;
 
 typedef struct
 {
@@ -55,8 +69,7 @@ typedef struct
 	uint8_t   pwm;
 
 	int16_t   i16_encoder;
-  	uint16_t  u16_encperiod;
-	uint16_t  u16_stepsin64ms;
+  	uint32_t  u32_encperiod;
 
 	int64_t   i64_encoder;
 	int8_t    i8_encoder_step;
@@ -92,12 +105,21 @@ volatile uint8_t u8HandlePIDFlag = 0;
 void handlePID();
 void TIM0_65536us();
 
+#ifdef USE_T1
 static uint64_t get_time_us()
 {
-	volatile uint8_t tov0 = TIFR0&1;
+	volatile uint32_t tov1 = TIFR1&1;
+	volatile uint32_t tcnt0 = (tov1<<16) | TCNT1;
+	return u64_time_us + tcnt0/8;
+}
+#else
+static uint64_t get_time_us()
+{
+	volatile uint16_t tov0 = TIFR0&1;
 	volatile uint16_t tcnt0 = (tov0<<8) | TCNT0;
 	return u64_time_us + tcnt0;
 }
+#endif
 
 #ifdef DEBUGUART
 /********************************************************************************
@@ -111,6 +133,7 @@ static int uart_putchar(char ch, FILE *stream)
 	while(uart_char_state!=0xff);
 	uart_char = ch;
 	uart_char_state = 0;
+	return 1;
 }
 
 static FILE mystdout = FDEV_SETUP_STREAM(uart_putchar, NULL, _FDEV_SETUP_WRITE);
@@ -150,21 +173,42 @@ void uart_handle()
  */
 void TIM0_65536us()
 {
+	if( main_loop_int_pulse == 13 ) INTOUT(1);
 	u8Tick = 1;
+	if( main_loop_int_pulse == 13 ) INTOUT(0);
 }
 
-/*
- * timer0 overflow
- */
 volatile uint8_t tim0_divcnt = 0;
+/*
+ * timer0/1 overflow
+ */
+#ifdef USE_T1
+ISR (TIM1_OVF_vect)
+#else
 ISR (TIM0_OVF_vect)
+#endif
 {
+	if( main_loop_int_pulse == 3 ) INTOUT(1);
+	if( main_loop_int_pulse == 3 ) INTOUT(0);
+	if( main_loop_int_pulse == 4 ) INTOUT(1);
 	sei();	// allow other IRQs e.g. i2c
 
+#ifdef USE_T1
+  // Freg = F_CPU/(65536) = 8192us 
+  u64_time_us += (1000000UL*65536)/F_CPU;
+  tim0_divcnt++;
+  	if( motor_break_cntdown > 0 )
+		{
+			motor_break_cntdown--;
+			if( motor_break_cntdown == 0 )
+			{
+				motor_mode = MODE_BREAK;
+			}
+		}
+#else
   // Freg = F_CPU/(8*256) = 256us ~ 3906.25Hz
   u64_time_us += (1000000UL*8*256)/F_CPU;
   tim0_divcnt++;
-
   if( (tim0_divcnt&3) == 0 )
   {
   	if( motor_break_cntdown > 0 )
@@ -176,15 +220,48 @@ ISR (TIM0_OVF_vect)
 			}
 		}
   }
+#endif
 
 #ifdef DEBUGUART
 	uart_handle();
 #endif
 
-if( (tim0_divcnt&15) == 0 )
+#ifdef USE_T1
+  /*
+   * ~8ms
+   */
+  u8HandlePIDFlag = 1;
+
+  if( (tim0_divcnt&7) == 0 )
+  {
+   if( (tim0_divcnt&31) == 0 )
+   {
+	   /* every 256 ms
+	    */
+    if( motor_A.u8_encoder_flag == 0 )
+    {
+      motor_A.u32_encperiod = (((uint32_t)motor_A.u32_encperiod*7) + (1048576*128))/8;
+	  if( main_loop_int_pulse == 16 ) INTOUT(1);
+	  if( main_loop_int_pulse == 16 ) INTOUT(0);
+    }
+    motor_A.u8_encoder_flag = 0;
+
+    if( motor_B.u8_encoder_flag == 0 )
+    {
+      motor_B.u32_encperiod = (((uint32_t)motor_B.u32_encperiod*7) + (1048576*128))/8;
+	  if( main_loop_int_pulse == 17 ) INTOUT(1);
+	  if( main_loop_int_pulse == 17 ) INTOUT(0);
+    }
+    motor_B.u8_encoder_flag = 0;
+   }
+
+    TIM0_65536us();
+  }
+#else
+if( (tim0_divcnt&31) == 0 )
 	{
 		/*
-		 * ~4ms
+		 * ~8ms
 		 */
  	  u8HandlePIDFlag = 1;
 	}
@@ -193,18 +270,24 @@ if( (tim0_divcnt&15) == 0 )
   {
     if( motor_A.u8_encoder_flag == 0 )
     {
-      motor_A.u16_encperiod = (((uint32_t)motor_A.u16_encperiod*7) + 65535)>>3;
+      motor_A.u32_encperiod = (((uint32_t)motor_A.u32_encperiod*3) + 262144)/4;
+	  if( main_loop_int_pulse == 16 ) INTOUT(1);
+	  if( main_loop_int_pulse == 16 ) INTOUT(0);
     }
     motor_A.u8_encoder_flag = 0;
 
     if( motor_B.u8_encoder_flag == 0 )
     {
-      motor_B.u16_encperiod = (((uint32_t)motor_B.u16_encperiod*7) + 65535)>>3;
+      motor_B.u32_encperiod = (((uint32_t)motor_B.u32_encperiod*3) + 262144)/4;
+	  if( main_loop_int_pulse == 17 ) INTOUT(1);
+	  if( main_loop_int_pulse == 17 ) INTOUT(0);
     }
     motor_B.u8_encoder_flag = 0;
 
     TIM0_65536us();
   }
+#endif
+	if( main_loop_int_pulse == 4 ) INTOUT(0);
 }
 
 /********************************************************************************
@@ -214,8 +297,12 @@ if( (tim0_divcnt&15) == 0 )
 ISR(PCINT0_vect)
 {
 	uint64_t t = 0;
-	volatile uint8_t flaga = 0;
-	volatile uint8_t flagb = 0;
+	uint8_t flaga = 0;
+	uint8_t flagb = 0;
+
+	//GIFR |= (1<<PCIF0);
+
+	if( main_loop_int_pulse == 5 ) INTOUT(1);
 
 	{
 		static uint8_t _enca = 0;
@@ -246,23 +333,25 @@ ISR(PCINT0_vect)
 	if( flaga!=0 || flagb!=0 )
 	{
 		 t = get_time_us();
+		 if( main_loop_int_pulse == 6 ) INTOUT(1);
 	}
 
-	sei();	// allow other IRQs e.g. i2c
+	//sei();	// allow other IRQs e.g. i2c
 
 	if( flaga != 0 )
 	{
 		static uint64_t _ta = 0;
 		if( _ta != 0 )
 		{
-			uint16_t p = ((t - _ta)>65535)?65535:(t - _ta);
-			motor_A.u16_encperiod = (((uint32_t)motor_A.u16_encperiod*7) + p)>>3;
+			uint32_t p = ((t - _ta)>1000000)?1000000:(t - _ta);
+			motor_A.u32_encperiod = (((uint32_t)motor_A.u32_encperiod*3) + p)>>2;
 		}
 		_ta = t;
-		motor_A.u16_stepsin64ms++;
 		motor_A.i16_encoder++;
 		motor_A.i64_encoder += motor_A.i8_encoder_step;
-		motor_A.u8_encoder_flag = 1;
+		motor_A.u8_encoder_flag = 1; 
+		if( main_loop_int_pulse == 8 ) INTOUT(1);
+		if( main_loop_int_pulse == 8 ) INTOUT(0);
 	}
 
 	if( flagb != 0 )
@@ -270,15 +359,18 @@ ISR(PCINT0_vect)
 		static uint64_t _tb = 0;
 		if( _tb != 0 )
 		{
-			uint16_t p = ((t - _tb)>65535)?65535:(t - _tb);
-			motor_B.u16_encperiod = (((uint32_t)motor_B.u16_encperiod*7) + p)>>3;
+			uint32_t p = ((t - _tb)>1000000)?1000000:(t - _tb);
+			motor_B.u32_encperiod = (((uint32_t)motor_B.u32_encperiod*3) + p)>>2;
 		}
 		_tb = t;
-		motor_B.u16_stepsin64ms++;
 		motor_B.i16_encoder++;
 		motor_B.i64_encoder += motor_B.i8_encoder_step;
 		motor_B.u8_encoder_flag = 1;
+		if( main_loop_int_pulse == 9 ) INTOUT(1);
+		if( main_loop_int_pulse == 9 ) INTOUT(0);
 	}
+	if( main_loop_int_pulse == 5 ) INTOUT(0);
+	if( main_loop_int_pulse == 6 ) INTOUT(0);
 }
 
 static void setModeA(uint8_t mode,uint8_t pwm)
@@ -295,17 +387,21 @@ static void setModeB(uint8_t mode,uint8_t pwm)
 
 void calcPID(Motor *m,void(*set_mode)(uint8_t mode,uint8_t pwm))
 {
-  if( m->u16_encperiod > 0 )
+  if( m->u32_encperiod > 0 )
   {
-    int freq = 1000000 / m->u16_encperiod;
+    int freq = (1000000*SCALING_FACTOR) / m->u32_encperiod;
     if( freq >= 0x7fff)
     {
+	  if( main_loop_int_pulse == 15 ) INTOUT(1);
+	  if( main_loop_int_pulse == 15 ) INTOUT(0);
       freq = 0x7fff;
     }
     m->pid_processValue = freq;
   }
   else
   {
+	if( main_loop_int_pulse == 14 ) INTOUT(1);
+	if( main_loop_int_pulse == 14 ) INTOUT(0);
     m->pid_processValue = 0x7fff;
   }
 
@@ -437,9 +533,12 @@ volatile uint8_t u8TWIReg = 0;
 volatile uint8_t u8TWITmp[16] = {};
 volatile uint8_t u8TWITmpIdx = 0;
 
-#define TWI_REG_U64_CLOCK_US	((0<<8)|8)
-#define TWI_REG_U16_MODE  	    ((8<<8)|2)
-#define TWI_REG_U16_AUTOBREAK   ((10<<8)|2)
+#define TWI_REG_U64_CLOCK_US	 ((0<<8)|8)
+#define TWI_REG_U16_MODE  	 ((8<<8)|2)
+#define TWI_REG_U16_AUTOBREAK    ((10<<8)|2)
+#define TWI_REG_U16_BOOTCOUNTER  ((12<<8)|2)
+#define TWI_REG_U8_MAINLOOPPULSE ((14<<8)|1)
+#define TWI_REG_U8_I2CWDTRESET   ((15<<8)|1)
 
 // PID Parameter
 #define TWI_REG_S16_PID_K_PID	((0x10<<8)|6)
@@ -478,6 +577,7 @@ volatile uint8_t u8TWITmpIdx = 0;
  */
 void i2c_TwiRxHandler( uint16_t idx, uint8_t data )
 {
+  if( main_loop_int_pulse == 12 ) INTOUT(1);
   if( idx == 0 )
   {
     u8TWIReg = data;	// store register addr
@@ -492,6 +592,44 @@ void i2c_TwiRxHandler( uint16_t idx, uint8_t data )
 	 switch(u8TWIReg+idx)
      {
 #if 1
+		 case TWI_REG_RX(TWI_REG_U8_MAINLOOPPULSE):
+			main_loop_int_pulse = 0;
+			n = TWI_REG_BYTES(TWI_REG_U8_MAINLOOPPULSE);
+			for(i=0;i<n;i++)
+			{
+				v = u8TWITmp[(u8TWITmpIdx-(i+1))&15];
+				u8TWITmp[(u8TWITmpIdx-(i+1))&15] = 0;
+				main_loop_int_pulse |= v<<((n-1-i)*8);
+			}
+		 break;
+		 case TWI_REG_RX(TWI_REG_U8_I2CWDTRESET):
+			if( i2c_wdt_reset == 0 )
+			{
+			  i2c_wdt_reset = 1;
+			  switch(data)
+		  	  {
+                            case 1: wdt_enable(WDTO_1S); break;
+                            case 2: wdt_enable(WDTO_2S); break;
+                            case 4: wdt_enable(WDTO_4S); break;
+                            case 8: wdt_enable(WDTO_8S); break;
+			    default: wdt_enable(WDTO_1S); break;
+			  }
+			}
+			if( main_loop_int_pulse == 11 ) INTOUT(1);
+			wdt_reset();
+			if( main_loop_int_pulse == 11 ) INTOUT(0);
+		 break;
+		 case TWI_REG_RX(TWI_REG_U16_BOOTCOUNTER):
+			boot_counter = 0;
+			n = TWI_REG_BYTES(TWI_REG_U16_BOOTCOUNTER);
+			for(i=0;i<n;i++)
+			{
+				v = u8TWITmp[(u8TWITmpIdx-(i+1))&15];
+				u8TWITmp[(u8TWITmpIdx-(i+1))&15] = 0;
+				boot_counter |= v<<((n-1-i)*8);
+			}
+			eeprom_write_word(&eeFooByteArray1[0], boot_counter);
+		 break;
 		 case TWI_REG_RX(TWI_REG_U16_MODE):
 			motor_mode = 0;
 			n = TWI_REG_BYTES(TWI_REG_U16_MODE);
@@ -569,6 +707,7 @@ void i2c_TwiRxHandler( uint16_t idx, uint8_t data )
 	     break;
      }
   }
+  if( main_loop_int_pulse == 12 ) INTOUT(0);
 }
 
 /*
@@ -578,13 +717,19 @@ uint8_t i2c_TwiTxHandler( uint16_t idx )
 {
   uint8_t i = 0;
   uint8_t v = 0;
+  if( main_loop_int_pulse == 12 ) INTOUT(1);
   switch(u8TWIReg+idx)
   {
-#if 1
 	  case TWI_REG_TX(TWI_REG_U64_CLOCK_US):
 	    for(i=0;i<TWI_REG_BYTES(TWI_REG_U64_CLOCK_US);i++)
 		{
 	      u8TWITmp[(u8TWITmpIdx+i)&15] = (u64_time_us>>(i*8))&0xff;
+		}
+ 	  break;
+	  case TWI_REG_TX(TWI_REG_U16_BOOTCOUNTER):
+	    for(i=0;i<TWI_REG_BYTES(TWI_REG_U16_BOOTCOUNTER);i++)
+		{
+	      u8TWITmp[(u8TWITmpIdx+i)&15] = (boot_counter>>(i*8))&0xff;
 		}
  	  break;
 	  case TWI_REG_TX(TWI_REG_U16_MODE):
@@ -701,7 +846,6 @@ uint8_t i2c_TwiTxHandler( uint16_t idx )
 		}
 		motor_B.i16_encoder = 0;
  	  break;
-#endif
       default:
 	     break;
   }
@@ -709,6 +853,7 @@ uint8_t i2c_TwiTxHandler( uint16_t idx )
   v = u8TWITmp[u8TWITmpIdx&15];
   u8TWITmp[u8TWITmpIdx&15] = 0;
   u8TWITmpIdx++;
+  if( main_loop_int_pulse == 12 ) INTOUT(0);
   return v;
 }
 
@@ -717,6 +862,12 @@ uint8_t i2c_TwiTxHandler( uint16_t idx )
  */
 int main(void)
 {
+	boot_counter = eeprom_read_word(&eeFooByteArray1[0]) + 1; 
+	eeprom_write_word(&eeFooByteArray1[0], boot_counter);
+
+    DDRA &= ~(1<<PIN_INT);
+    PORTA |= (1<<PIN_INT);
+
 #ifdef DEBUGUART
 	stdout = &mystdout;
 #endif
@@ -729,30 +880,50 @@ int main(void)
 	PORTA |= (1<<PIN_ENCA);
 	PORTA |= (1<<PIN_ENCB);
 
+	PCMSK1 = 0;
+	PCMSK0 = 0;
   	PCMSK0 |= (1<<PCINT0);
 	PCMSK0 |= (1<<PCINT1);
 	GIMSK  = (1<<PCIE0);
+	GIFR |= (1<<PCIF0);
 
 	MODE_A(0);
 	MODE_B(0);
 
-  OCR0A = 0;
-  OCR0B = 0;
+    OCR0A = 0;
+    OCR0B = 0;
+    
+#ifdef USE_T1
+	// fast PWM mode
+    TCCR0A = (1 << COM0A1) | (0 << COM0A0) | (1 << COM0B1) | (0 << COM0B0) | (0 << WGM01) | (1 << WGM00);
+    TCCR0B = (0 << WGM02) | (1 << CS02) | (0 << CS01) | (0 << CS00);   // clock source = CLK/1, start PWM
+#else
+	// fast PWM mode
+    TCCR0A = (1 << COM0A1) | (0 << COM0A0) | (1 << COM0B1) | (0 << COM0B0) | (1 << WGM01) | (1 << WGM00);
+    TCCR0B = (0 << WGM02) | (0 << CS02) | (1 << CS01) | (0 << CS00);   // clock source = CLK/8, start PWM
+    // Overflow Interrupt erlauben
+    TIMSK0 |= (1<<TOIE0);
+#endif
 
-  // fast PWM mode
-  TCCR0A = (1 << COM0A1) | (0 << COM0A0) |
-		 (1 << COM0B1) | (0 << COM0B0) |
-		 (1 << WGM01) | (1 << WGM00);
-  TCCR0B = (0 << CS02) | (1 << CS01) | (0 << CS00);   // clock source = CLK/8, start PWM
-
-  // Overflow Interrupt erlauben
-  TIMSK0 |= (1<<TOIE0);
+#ifdef USE_T1
+  TCCR1B = (0 << CS02) | (0 << CS01) | (1 << CS00);   // clock source = CLK/8, start PWM
+  TIMSK1 |= (1<<TOIE1);
+#endif
 
   pid_Init(k_p,k_i,k_d, &(motor_A.pid));
   pid_Init(k_p,k_i,k_d, &(motor_B.pid));
 
 #ifndef DEBUGUART
   i2c_init();
+#endif
+
+#if 0
+  INTOUT(1);
+  for(;;)
+    {
+	PORTA |= (1<<PIN_INT);
+	PORTA &= ~(1<<PIN_INT);
+    }
 #endif
 
   sei();
@@ -775,7 +946,8 @@ int main(void)
 	motor_test_01[3].speed_B = 0;
 	motor_test_01[3].delay_ms = 1000;
 	motor_test_01[4].speed_A = 1000;
-	motor_test_01[4].speed_B = -1000;
+	motor_test_01[4].speed_B = -1000; 
+	motor_test_01[4].speed_B = -1000; 
 	motor_test_01[4].delay_ms = 10000;
 	motor_test_01[5].speed_A = 0;
 	motor_test_01[5].speed_B = 0;
@@ -789,19 +961,29 @@ int main(void)
 #endif
 
 #if 0
-	motor_mode = MODE_PID;
-	motor_A.pid_setPoint = 300;
-	motor_B.pid_setPoint = 300;
+	motor_mode = MODE_PWM;
+	setModeA(2,0);
+	setModeB(2,1);
 #endif
 
-	wdt_enable(WDTO_8S);   // Watchdog auf 1 s stellen
+#if 0
+	motor_mode = MODE_PID;
+	motor_A.pid_setPoint = 0;
+	motor_B.pid_setPoint = 394;
+#endif
+
+	main_loop_int_pulse = 17;
+
+	wdt_enable(WDTO_2S);   // Watchdog auf 1 s stellen
 
     for(;;)
     {
 			if( u8HandlePIDFlag == 1 )
 			{
 				u8HandlePIDFlag = 0;
+				if( main_loop_int_pulse == 7 ) INTOUT(1);
 				handlePID();
+				if( main_loop_int_pulse == 7 ) INTOUT(0);
 			}
 
 			if( u8Tick == 1 )
@@ -816,12 +998,6 @@ int main(void)
 				if( u64_time_us > _t )
 				{
 					_t = u64_time_us + 3000000UL;
-		#if 0
-					printf("%d,%d,%d ",
-					  (int)((int64_t)k_p*1000/128),
-					  (int)((int64_t)k_i*1000/128),
-					  (int)((int64_t)k_d*1000/128));
-		#endif
 					printf("A:%3d,%3d,%4d ",
 						motor_A.pid_setPoint,
 						motor_A.pid_processValue,
@@ -835,14 +1011,27 @@ int main(void)
 
 #if 1
 
+			if( main_loop_int_pulse == 1 )
+			{
+			  INTOUT(1);
+			  INTOUT(0);
+			}
 			if( i2c_idle() != 0 )
 			{
-				wdt_reset();
+				if( main_loop_int_pulse == 2 )
+				{
+				  INTOUT(1);
+				  INTOUT(0);
+				}
+				if(i2c_wdt_reset == 0) wdt_reset();
 
-				// sleep ...
-				set_sleep_mode(SLEEP_MODE_IDLE);
-		    		sleep_mode();
 			}
+			
+			//sleep ...
+			if( main_loop_int_pulse == 10 ) INTOUT(1);
+			set_sleep_mode(SLEEP_MODE_IDLE);
+			sleep_mode();
+			if( main_loop_int_pulse == 10 ) INTOUT(0);
 #endif
     }
 

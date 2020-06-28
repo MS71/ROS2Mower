@@ -279,7 +279,7 @@ void app_main();
 void app_main()
 {
     /* Print chip information */
-    //esp_log_level_set("wifi", ESP_LOG_WARN);
+    //esp_log_level_set("i2c", ESP_LOG_INFO);
     //esp_log_level_set("gpio", ESP_LOG_WARN);
 
     ESP_LOGI(TAG, "init ULP ...");

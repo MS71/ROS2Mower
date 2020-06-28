@@ -1,3 +1,5 @@
+#define LOG_LOCAL_LEVEL ESP_LOG_INFO
+
 #include <exception>
 #include <math.h>
 #include <stdio.h>
@@ -33,7 +35,7 @@
 
 static const char* TAG = "I2C";
 
-#define ENABLE_OLED
+#undef ENABLE_OLED
 
 #define I2C_BUS_PORT 0
 #define I2C_BUS_SDA 22
@@ -44,10 +46,15 @@ static const char* TAG = "I2C";
 #define MOTORNODE_I2C_ADDR 0x0a
 //#define MOTOR_GEAR_N		16.0
 #define MOTOR_GEAR_N		50.0
-#define MOTOR_RPM(_rpm_) (int)(128.0*((_rpm_) * MOTOR_GEAR_N)/60.0)
+#define MOTOR_RPM(_rpm_) (int)(128.0*((_rpm_) * MOTOR_GEAR_N / 60.0))
 #define MOTOR_MAX_RPM		120 
 #define MOTOR_WHEEL_D 		0.175
-#define MOTOR_START_RPM		0
+#define MOTOR_START_RPM_L	 0.0
+#define MOTOR_START_RPM_R        0.0
+
+#define MOTOR_P			(0.15*128)
+#define MOTOR_I			(0.01*128)
+#define MOTOR_D			(0.01*128)
 	
 extern ip4_addr_t s_ip_addr;
 struct SSD1306_Device I2CDisplay;
@@ -561,12 +568,12 @@ static void i2c_task(void* param)
     try {
 	i2cnode_set_u16(PWRNODE_I2C_ADDR, 0x10, 30); // update TWI_MEM_SHDWNCNT 
 	
-	i2cnode_set_i16(MOTORNODE_I2C_ADDR, 0x20, (int16_t)(128*0.2));
-	i2cnode_set_i16(MOTORNODE_I2C_ADDR, 0x22, (int16_t)(128*0.01));
-	i2cnode_set_i16(MOTORNODE_I2C_ADDR, 0x24, (int16_t)(128*0.01));
+	i2cnode_set_i16(MOTORNODE_I2C_ADDR, 0x20, (int16_t)MOTOR_P);
+	i2cnode_set_i16(MOTORNODE_I2C_ADDR, 0x22, (int16_t)MOTOR_I);
+	i2cnode_set_i16(MOTORNODE_I2C_ADDR, 0x24, (int16_t)MOTOR_D);
 	i2cnode_set_i16(MOTORNODE_I2C_ADDR, 0x08, 2);
-	i2cnode_set_i16(MOTORNODE_I2C_ADDR, 0x20, MOTOR_RPM(MOTOR_START_RPM));
-	i2cnode_set_i16(MOTORNODE_I2C_ADDR, 0x40, -MOTOR_RPM(MOTOR_START_RPM));
+	i2cnode_set_i16(MOTORNODE_I2C_ADDR, 0x20, MOTOR_RPM(MOTOR_START_RPM_L));
+	i2cnode_set_i16(MOTORNODE_I2C_ADDR, 0x40, MOTOR_RPM(MOTOR_START_RPM_R));
 	//i2cnode_set_i16(MOTORNODE_I2C_ADDR, 0x0E, 7);
     } catch(int err) {
 	ESP_LOGE(TAG, "I2C exception err=0x%02x", err);
@@ -615,8 +622,14 @@ static void i2c_task(void* param)
 	    SSD1306_Update(&I2CDisplay);
 #endif
 
-#if 0
-		ESP_LOGI(TAG, "Motor Status: bootcnt=%d time=%5.3f mode=%d sp=(%d,%d) dir=(%d,%d) enc=(%d,%d)(%d,%d) pv=(%d,%d)", 
+            wifi_ap_record_t wifi_info = {};
+	    esp_wifi_sta_get_ap_info(&wifi_info);
+#if 1
+		ESP_LOGI(TAG, "rssi=%d Ubat=%2.1fV Isol=%1.1fmA Iout=%1.3fA  Motor: boot=%d t=%5.3f m=%d sp=(%d,%d) dir=(%d,%d) enc=(%d,%d)(%d,%d) pv=(%d,%d)", 
+			(wifi_info.rssi),
+			(float)i2cnode_get_u16(PWRNODE_I2C_ADDR, 0x28)/1000.0,
+			(float)i2cnode_get_u16(PWRNODE_I2C_ADDR, 0x30)/1.0,
+			(float)i2cnode_get_u16(PWRNODE_I2C_ADDR, 0x32)/1000.0,
 			i2cnode_get_u16(MOTORNODE_I2C_ADDR, 0x0C),
 			(double)i2cnode_get_u64(MOTORNODE_I2C_ADDR, 0x00)/1000000.0,
 			i2cnode_get_u16(MOTORNODE_I2C_ADDR, 0x08),
@@ -632,7 +645,7 @@ static void i2c_task(void* param)
 			(int)i2cnode_get_i16(MOTORNODE_I2C_ADDR, 0x42));
 #endif
 
-#if 1
+#if 0
 		ESP_LOGI(TAG, "Power Supply Status: bootcnt=%d time=0x%08x pmsw=%d SHDWNCNT=%d PWRUPCNT=%d SHDWNREL=%d PWRUPREL=%d", 
 			0,
 			i2cnode_get_u32(PWRNODE_I2C_ADDR, 0x04),
@@ -701,6 +714,7 @@ static void i2c_task(void* param)
  */
 void i2c_handler_init()
 {
+    //esp_log_level_set(TAG, ESP_LOG_INFO);
     ESP_LOGI(TAG, "main() i2c init ...");
     static i2c_config_t Config;
     memset(&Config, 0, sizeof(i2c_config_t));
@@ -711,7 +725,7 @@ void i2c_handler_init()
     Config.scl_io_num = (gpio_num_t)I2C_BUS_SCL;
     // Config.scl_io_num = (gpio_num_t)12;
     Config.scl_pullup_en = GPIO_PULLUP_ENABLE;
-    Config.master.clk_speed = 100000;
+    Config.master.clk_speed = 50000;
     i2c_param_config((i2c_port_t)I2C_BUS_PORT, &Config);
     i2c_driver_install((i2c_port_t)I2C_BUS_PORT, Config.mode, 0, 0, 0);
     //		i2c_set_timeout((i2c_port_t)I2C_BUS_PORT, (I2C_APB_CLK_FREQ / Config.master.clk_speed)*1024);

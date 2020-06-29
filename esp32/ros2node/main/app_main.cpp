@@ -107,7 +107,8 @@ static const char* TAG = "MAIN";
 
 EventGroupHandle_t s_wifi_event_group;
 const int CONNECTED_BIT = BIT0;
-esp_ip4_addr_t s_ip_addr = {};
+//esp_ip4_addr_t s_ip_addr = {};
+ip4_addr_t s_ip_addr = {};
 uint8_t s_ip_addr_changed = 1;
 
 int ros2_sock = -1;

@@ -21,12 +21,17 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "soc/rtc_cntl_reg.h"
-#include "esp32/rom/uart.h"
+//#include "esp32/rom/uart.h"
+#include "rom/uart.h"
 #include "cmd_system.h"
 #include "sdkconfig.h"
 
 #ifdef CONFIG_FREERTOS_USE_STATS_FORMATTING_FUNCTIONS
 #define WITH_TASKS_INFO 1
+#endif
+
+#ifndef CONFIG_ESP_CONSOLE_UART_NUM
+#define CONFIG_ESP_CONSOLE_UART_NUM CONFIG_CONSOLE_UART_NUM
 #endif
 
 static const char *TAG = "cmd_system";

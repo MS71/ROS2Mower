@@ -1,4 +1,4 @@
-//#define LOG_LOCAL_LEVEL ESP_LOG_INFO
+#define LOG_LOCAL_LEVEL ESP_LOG_INFO
 
 #include <exception>
 #include <math.h>
@@ -24,6 +24,7 @@
 #include "esp_ota_ops.h"
 #include "esp_system.h"
 #include "esp_wifi.h"
+#include "esp_pm.h"
 #include "ota_server.h"
 
 #include "i2chandler.h"
@@ -37,7 +38,7 @@
 
 static const char* TAG = "I2C";
 
-#undef ENABLE_OLED
+#define ENABLE_OLED
 
 #define I2C_BUS_PORT 0
 #define I2C_BUS_SDA 22
@@ -531,6 +532,7 @@ bool ros2ready(ros2::Node* ros2node)
  */
 static void i2c_task(void* param)
 {
+	esp_pm_lock_handle_t pmlock;
 #ifdef CONFIG_ENABLE_ROS2
     static ros2::Node ros2node(ROS2_NODENAME);
 #endif
@@ -538,7 +540,10 @@ static void i2c_task(void* param)
     char tmpstr[64] = "";
     //int tmpcnt = 0;
 
+	esp_pm_lock_create(ESP_PM_NO_LIGHT_SLEEP,0,"i2clock",&pmlock);
+	
 #ifdef ENABLE_OLED
+	uint8_t oled_update = 0;
     SSD1306_Init_I2C(&I2CDisplay, 128, 64, 0x78 >> 1, -1, I2CDefaultWriteCommand, I2CDefaultWriteData, I2CDefaultReset);
     SSD1306_DisplayOn(&I2CDisplay);
     SSD1306_Clear(&I2CDisplay, SSD_COLOR_BLACK);
@@ -571,7 +576,7 @@ static void i2c_task(void* param)
 
     try {
 	i2cnode_set_u16(PWRNODE_I2C_ADDR, 0x10, 60); // update TWI_MEM_SHDWNCNT 
-	//i2cnode_set_u16(PWRNODE_I2C_ADDR, 0x18, 12500); // sty on with ubat>12.5V
+	i2cnode_set_u16(PWRNODE_I2C_ADDR, 0x18, 12500); // sty on with ubat>12.5V
 	
 	i2cnode_set_i16(MOTORNODE_I2C_ADDR, 0x20, (int16_t)MOTOR_P);
 	i2cnode_set_i16(MOTORNODE_I2C_ADDR, 0x22, (int16_t)MOTOR_I);
@@ -584,8 +589,12 @@ static void i2c_task(void* param)
 	ESP_LOGE(TAG, "I2C exception err=0x%02x", err);
     }
 
+	esp_pm_lock_release(pmlock);
     while(1) {
         bool keepon = false;
+		
+		esp_pm_lock_acquire(pmlock);
+
 	try {
 	    uint16_t ubat_mV = i2cnode_get_u16(PWRNODE_I2C_ADDR, 0x28);
 	    int16_t isolar_mA = i2cnode_get_i16(PWRNODE_I2C_ADDR, 0x30);
@@ -600,34 +609,39 @@ static void i2c_task(void* param)
         ubat = (double)ubat_mV/1000.0;
         
 #ifdef ENABLE_OLED
-	    int y = 0;
-	    int s = 5;
-	    SSD1306_Clear(&I2CDisplay, SSD_COLOR_BLACK);
+		if( oled_update-- == 0 )
+		{
+			int y = 0;
+			int s = 5;
+			SSD1306_Clear(&I2CDisplay, SSD_COLOR_BLACK);
 
-	    SSD1306_SetFont(&I2CDisplay, &Font_droid_sans_mono_7x13);
-	    uint32_t pm_rtc = i2cnode_get_u32(PWRNODE_I2C_ADDR, 0x04);
-	    sprintf(tmpstr, "P:%d T:%03d:%02d:%02d:%02d", ((esp_ota_get_running_partition()->address) >> 20) & 0x7,
-	        (pm_rtc / (60 * 60 * 24)) % 1000, (pm_rtc / (60 * 60)) % 24, (pm_rtc / 60) % 60, (pm_rtc) % 60);
-	    SSD1306_FontDrawString(&I2CDisplay, 0, y, tmpstr, SSD_COLOR_WHITE);
-	    y += (s + 7);
+			SSD1306_SetFont(&I2CDisplay, &Font_droid_sans_mono_7x13);
+			uint32_t pm_rtc = i2cnode_get_u32(PWRNODE_I2C_ADDR, 0x04);
+			sprintf(tmpstr, "P:%d T:%03d:%02d:%02d:%02d", ((esp_ota_get_running_partition()->address) >> 20) & 0x7,
+				(pm_rtc / (60 * 60 * 24)) % 1000, (pm_rtc / (60 * 60)) % 24, (pm_rtc / 60) % 60, (pm_rtc) % 60);
+			SSD1306_FontDrawString(&I2CDisplay, 0, y, tmpstr, SSD_COLOR_WHITE);
+			y += (s + 7);
 
-	    SSD1306_SetFont(&I2CDisplay, &Font_droid_sans_mono_7x13);
-	    sprintf(tmpstr, "IP:%d.%d.%d.%d", (s_ip_addr.addr >> 0) & 0xff, (s_ip_addr.addr >> 8) & 0xff,
-	        (s_ip_addr.addr >> 16) & 0xff, (s_ip_addr.addr >> 24) & 0xff);
-	    SSD1306_FontDrawString(&I2CDisplay, 0, y, tmpstr, SSD_COLOR_WHITE);
-	    y += (s + 7);
+			SSD1306_SetFont(&I2CDisplay, &Font_droid_sans_mono_7x13);
+			sprintf(tmpstr, "IP:%d.%d.%d.%d", (s_ip_addr.addr >> 0) & 0xff, (s_ip_addr.addr >> 8) & 0xff,
+				(s_ip_addr.addr >> 16) & 0xff, (s_ip_addr.addr >> 24) & 0xff);
+			SSD1306_FontDrawString(&I2CDisplay, 0, y, tmpstr, SSD_COLOR_WHITE);
+			y += (s + 7);
 
-	    SSD1306_SetFont(&I2CDisplay, &Font_droid_sans_mono_13x24);
-	    sprintf(tmpstr, "Ub:%2.2fV", ubat_mV / 1000.0);
-	    SSD1306_FontDrawString(&I2CDisplay, 0, y, tmpstr, SSD_COLOR_WHITE);
-	    y += (s + 13);
+			SSD1306_SetFont(&I2CDisplay, &Font_droid_sans_mono_13x24);
+			sprintf(tmpstr, "Ub:%2.2fV", ubat_mV / 1000.0);
+			SSD1306_FontDrawString(&I2CDisplay, 0, y, tmpstr, SSD_COLOR_WHITE);
+			y += (s + 13);
 
-	    SSD1306_SetFont(&I2CDisplay, &Font_droid_sans_fallback_15x17);
-	    sprintf(tmpstr, "I: %3d %3d %4d", isolar_mA, iout_mA, icharge_mA);
-	    SSD1306_FontDrawString(&I2CDisplay, 0, y, tmpstr, SSD_COLOR_WHITE);
-	    y += (s + 13);
+			SSD1306_SetFont(&I2CDisplay, &Font_droid_sans_fallback_15x17);
+			sprintf(tmpstr, "I: %3d %3d %4d", isolar_mA, iout_mA, icharge_mA);
+			SSD1306_FontDrawString(&I2CDisplay, 0, y, tmpstr, SSD_COLOR_WHITE);
+			y += (s + 13);
 
-	    SSD1306_Update(&I2CDisplay);
+			SSD1306_Update(&I2CDisplay);
+			
+			oled_update = 10;
+		}
 #endif
 
             wifi_ap_record_t wifi_info = {};
@@ -711,13 +725,15 @@ static void i2c_task(void* param)
 
         if(keepon==true || console_connected()==true)
         {
-        	//i2cnode_set_u16(PWRNODE_I2C_ADDR, 0x10, 5*60); // update TWI_MEM_SHDWNCNT while ROS is connected            
+        	i2cnode_set_u16(PWRNODE_I2C_ADDR, 0x10, 5*60); // update TWI_MEM_SHDWNCNT while ROS is connected            
         }
 
 	    i2cnode_set_u8(MOTORNODE_I2C_ADDR, 0x0f, 2); // Motor Driver Watchdog Reset
 	} catch(int err) {
 	    ESP_LOGE(TAG, "I2C exception err=0x%02x", err);
 	}
+	esp_pm_lock_acquire(pmlock);
+
 	vTaskDelay(50 / portTICK_PERIOD_MS);
     }
     vTaskDelete(NULL);
@@ -739,7 +755,7 @@ void i2c_handler_init()
     Config.scl_io_num = (gpio_num_t)I2C_BUS_SCL;
     // Config.scl_io_num = (gpio_num_t)12;
     Config.scl_pullup_en = GPIO_PULLUP_ENABLE;
-    Config.master.clk_speed = 50000;
+    Config.master.clk_speed = 100000;
     i2c_param_config((i2c_port_t)I2C_BUS_PORT, &Config);
     i2c_driver_install((i2c_port_t)I2C_BUS_PORT, Config.mode, 0, 0, 0);
     //		i2c_set_timeout((i2c_port_t)I2C_BUS_PORT, (I2C_APB_CLK_FREQ / Config.master.clk_speed)*1024);

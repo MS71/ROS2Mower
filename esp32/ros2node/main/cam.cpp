@@ -181,30 +181,6 @@ static void handle_jpg_stream(http_context_t http_ctx, void* ctx)
     http_response_end(http_ctx);
 }
 
-static esp_err_t event_handler(void* ctx, system_event_t* event)
-{
-    switch(event->event_id) {
-    case SYSTEM_EVENT_STA_START:
-	esp_wifi_connect();
-	break;
-    case SYSTEM_EVENT_STA_GOT_IP:
-	xEventGroupSetBits(s_wifi_event_group, CONNECTED_BIT);
-	s_ip_addr = event->event_info.got_ip.ip_info.ip;
-	s_ip_addr_changed = 1;
-
-	break;
-    case SYSTEM_EVENT_STA_DISCONNECTED:
-	esp_wifi_connect();
-	xEventGroupClearBits(s_wifi_event_group, CONNECTED_BIT);
-	s_ip_addr.addr = 0;
-	s_ip_addr_changed = 1;
-	break;
-    default:
-	break;
-    }
-    return ESP_OK;
-}
-
 void camera_init()
 {
 	#if 0

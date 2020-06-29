@@ -9,6 +9,8 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <stdarg.h>
+
 #include "esp_system.h"
 #include "esp_log.h"
 #include "esp_console.h"
@@ -18,178 +20,293 @@
 #include "argtable3/argtable3.h"
 //#include "cmd_decl.h"
 #include "esp_vfs_fat.h"
+#include "esp_sleep.h"
 #include "nvs.h"
 #include "nvs_flash.h"
+
+#include "lwip/err.h"
+#include "lwip/sockets.h"
+#include "lwip/sys.h"
+#include <lwip/netdb.h>
 
 #include "cmd_system.h"
 //#include "cmd_wifi.h"
 #include "cmd_nvs.h"
 
+
 static const char* TAG = "CON";
 
-/* Console command history can be stored to and loaded from a file.
- * The easiest way to do this is to use FATFS filesystem on top of
- * wear_levelling library.
+#define PORT 23
+#define PROMPT "ros2mower>"
+
+extern double ubat;
+
+static int con_sock = -1;
+
+static vprintf_like_t con_deflog = NULL;
+static char con_log_linebuf[1024];
+
+/**
+ * @brief 
+ * @return 
  */
-#if CONFIG_STORE_HISTORY
-
-#define MOUNT_PATH "/data"
-#define HISTORY_PATH MOUNT_PATH "/history.txt"
-
-static void initialize_filesystem()
+bool console_connected()
 {
-    static wl_handle_t wl_handle;
-    const esp_vfs_fat_mount_config_t mount_config = {
-            .max_files = 4,
-            .format_if_mount_failed = true
-    };
-    esp_err_t err = esp_vfs_fat_spiflash_mount(MOUNT_PATH, "storage", &mount_config, &wl_handle);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to mount FATFS (%s)", esp_err_to_name(err));
-        return;
-    }
-}
-#endif // CONFIG_STORE_HISTORY
-
-static void initialize_nvs()
-{
-    esp_err_t err = nvs_flash_init();
-    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        ESP_ERROR_CHECK( nvs_flash_erase() );
-        err = nvs_flash_init();
-    }
-    ESP_ERROR_CHECK(err);
+    return (con_sock!=-1)?true:false;
 }
 
-static void initialize_console()
+/**
+ * @brief 
+ * @param fmt
+ */
+void con_printf(const char* fmt, ...)
+{ 
+    if( con_sock != -1 )
+    {
+        //char linebuf[180];
+        va_list arglist;
+        va_start( arglist, fmt );
+        int n = vsnprintf( con_log_linebuf, sizeof(con_log_linebuf), fmt, arglist );
+        if(n > 0)
+        {
+            if( send(con_sock, con_log_linebuf, n, 0) != n )
+            {
+                shutdown(con_sock, 0);
+                close(con_sock);
+                con_sock = -1;            
+            }
+        }
+        va_end( arglist );   
+    }
+}
+
+/**
+ * @brief 
+ * @param format
+ * @param args
+ * @return 
+ */
+int con_log(const char *format, va_list args)
 {
-    /* Disable buffering on stdin */
-    setvbuf(stdin, NULL, _IONBF, 0);
+    if( con_sock != -1 )
+    {
+        vsnprintf (con_log_linebuf, sizeof(con_log_linebuf)-1, format, args);
+        int n = strlen(con_log_linebuf);	
+        if(n > 0)
+        {
+            if( send(con_sock, con_log_linebuf, n, 0) != n )
+            {
+                shutdown(con_sock, 0);
+                close(con_sock);
+                con_sock = -1;            
+            }
+        }
+    }
+    else if( con_deflog != NULL )
+    {
+        con_deflog(format,args);
+    }
+	return 1;
+}
 
-    /* Minicom, screen, idf_monitor send CR when ENTER key is pressed */
-    esp_vfs_dev_uart_set_rx_line_endings(ESP_LINE_ENDINGS_CR);
-    /* Move the caret to the beginning of the next line on '\n' */
-    esp_vfs_dev_uart_set_tx_line_endings(ESP_LINE_ENDINGS_CRLF);
+/**
+ * @brief 
+ */
+static void con_handle()
+{
+    int len;
+    char rx_buffer[128];
 
-    /* Configure UART. Note that REF_TICK is used so that the baud rate remains
-     * correct while APB frequency is changing in light sleep mode.
-     */
-    uart_config_t uart_config = {};
-	uart_config.baud_rate = 115200;
-	uart_config.data_bits = UART_DATA_8_BITS;
-	uart_config.parity = UART_PARITY_DISABLE;
-	uart_config.stop_bits = UART_STOP_BITS_1;
-	uart_config.use_ref_tick = true;
-	
-    ESP_ERROR_CHECK( uart_param_config((uart_port_t)CONFIG_CONSOLE_UART_NUM, &uart_config) );
-
-    /* Install UART driver for interrupt-driven reads and writes */
-    ESP_ERROR_CHECK( uart_driver_install((uart_port_t)CONFIG_CONSOLE_UART_NUM,
-            256, 0, 0, NULL, 0) );
-
-    /* Tell VFS to use UART driver */
-    esp_vfs_dev_uart_use_driver(CONFIG_CONSOLE_UART_NUM);
-
-    /* Initialize the console */
-    esp_console_config_t console_config = {};
-	console_config.max_cmdline_args = 8;
-	console_config.max_cmdline_length = 256;
-#if CONFIG_LOG_COLORS
-	console_config.hint_color = atoi(LOG_COLOR_CYAN);
+    do {
+        con_printf("%s", PROMPT);
+        len = recv(con_sock, rx_buffer, sizeof(rx_buffer) - 1, 0);
+        if (len < 0) {
+            ESP_LOGE(TAG, "Error occurred during receiving: errno %d", errno);
+        } else if (len == 0) {
+            ESP_LOGW(TAG, "Connection closed");
+        } else {
+            rx_buffer[len] = 0; // Null-terminate whatever is received and treat it like a string
+            
+            while( len>0 && rx_buffer[len-1]<=32 ) rx_buffer[--len] = 0; 
+            if(strcasecmp("help",rx_buffer)==0)
+            {
+                con_printf("* help                    # print available list of commands\n");
+#ifdef CONFIG_FREERTOS_GENERATE_RUN_TIME_STATS
+                con_printf("* rtstats                 # print runtime stats\n");
 #endif
-    ESP_ERROR_CHECK( esp_console_init(&console_config) );
+                con_printf("* log_set_level TAG LEVEL # set log level for given tag\n");
+                con_printf("* close                   # close the connection\n");
+            }
+            else if(strcasecmp("restart",rx_buffer)==0 || strcasecmp("reboot",rx_buffer)==0)
+            {
+                con_printf("restarting ...\n");
+                esp_restart();
+                return;
+            }
+            else if(strstr(rx_buffer,"log_set_level")==rx_buffer)
+            {
+                char p1[64] = "";
+                char p2[64] = "";
+                char p3[64] = "";
+                int n = sscanf(rx_buffer,"%s %s %s",p1,p2,p3);
+                if( n==3 && strcmp(p1,"log_set_level")==0 && strcmp(p3,"none")==0)
+                {
+                    esp_log_level_set(p2,ESP_LOG_NONE);
+                }
+                else if( n==3 && strcmp(p1,"log_set_level")==0 && strcmp(p3,"error")==0)
+                {
+                    esp_log_level_set(p2,ESP_LOG_ERROR);
+                }
+                else if( n==3 && strcmp(p1,"log_set_level")==0 && strcmp(p3,"warn")==0)
+                {
+                    esp_log_level_set(p2,ESP_LOG_WARN);
+                }
+                else if( n==3 && strcmp(p1,"log_set_level")==0 && strcmp(p3,"info")==0)
+                {
+                    esp_log_level_set(p2,ESP_LOG_INFO);
+                }
+                else if( n==3 && strcmp(p1,"log_set_level")==0 && strcmp(p3,"debug")==0)
+                {
+                    esp_log_level_set(p2,ESP_LOG_DEBUG);
+                }
+                else if( n==3 && strcmp(p1,"log_set_level")==0 && strcmp(p3,"verbose")==0)
+                {
+                    esp_log_level_set(p2,ESP_LOG_VERBOSE);
+                }                
+            }
+            else if(strcasecmp("logerror",rx_buffer)==0)
+            {
+                con_printf("logoff ...\n");
+                esp_log_level_set("*",ESP_LOG_ERROR);
+            }
+            else if(strcasecmp("logwarn",rx_buffer)==0)
+            {
+                con_printf("logwarn ...\n");
+                esp_log_level_set("*",ESP_LOG_WARN);
+            }
+            else if(strcasecmp("loginfo",rx_buffer)==0)
+            {
+                con_printf("loginfo ...\n");
+                esp_log_level_set("*",ESP_LOG_INFO);
+            }
+            else if(strcasecmp("info",rx_buffer)==0)
+            {
+                esp_chip_info_t chip_info;
+                esp_chip_info(&chip_info);
+                con_printf("This is ESP32 chip with %d CPU cores, WiFi%s%s, \n", chip_info.cores,
+                    (chip_info.features & CHIP_FEATURE_BT) ? "/BT" : "", (chip_info.features & CHIP_FEATURE_BLE) ? "/BLE" : "");
 
-    /* Configure linenoise line completion library */
-    /* Enable multiline editing. If not set, long commands will scroll within
-     * single line.
-     */
-    linenoiseSetMultiLine(1);
+                con_printf("silicon revision %d, \n", chip_info.revision);
 
-    /* Tell linenoise where to get command completions and hints */
-    linenoiseSetCompletionCallback(&esp_console_get_completion);
-    linenoiseSetHintsCallback((linenoiseHintsCallback*) &esp_console_get_hint);
-
-    /* Set command history size */
-    linenoiseHistorySetMaxLen(100);
-
-#if CONFIG_STORE_HISTORY
-    /* Load command history from filesystem */
-    linenoiseHistoryLoad(HISTORY_PATH);
+                con_printf("%dMB %s flash\n", spi_flash_get_chip_size() / (1024 * 1024),
+                    (chip_info.features & CHIP_FEATURE_EMB_FLASH) ? "embedded" : "external");
+ 
+               con_printf("ubat = %1.3f\n", ubat);
+            }
+            else if(strcasecmp("close",rx_buffer)==0)
+            {
+                con_printf("closing ...\n");
+                shutdown(con_sock, 0);
+                close(con_sock);
+                con_sock = -1;
+                return;
+            }
+#ifdef CONFIG_FREERTOS_GENERATE_RUN_TIME_STATS
+            else if(strcasecmp("rtstats",rx_buffer)==0)
+            {
+                vTaskGetRunTimeStats(con_log_linebuf);
+                con_printf("%s",con_log_linebuf);
+            }
 #endif
+            else
+            {
+                con_printf("?%s\n",rx_buffer);
+            }
+        }
+    } while (con_sock!=-1);
 }
 
 void console()
 {
-    initialize_nvs();
+    char addr_str[128];
+    int addr_family = AF_INET;
+    int ip_protocol = 0;
+    struct sockaddr_in6 dest_addr;
 
-#if CONFIG_STORE_HISTORY
-    initialize_filesystem();
-#endif
+	con_deflog = esp_log_set_vprintf(con_log);
 
-    initialize_console();
-
-    /* Register commands */
-    esp_console_register_help_command();
-    register_system();
-    //register_wifi();
-    register_nvs();
-
-    /* Prompt to be printed before each line.
-     * This can be customized, made dynamic, etc.
-     */
-    const char* prompt = LOG_COLOR_I "esp32> " LOG_RESET_COLOR;
-
-    printf("\n"
-           "This is an example of ESP-IDF console component.\n"
-           "Type 'help' to get the list of commands.\n"
-           "Use UP/DOWN arrows to navigate through command history.\n"
-           "Press TAB when typing command name to auto-complete.\n");
-
-    /* Figure out if the terminal supports escape sequences */
-    int probe_status = linenoiseProbe();
-    if (probe_status) { /* zero indicates success */
-        printf("\n"
-               "Your terminal application does not support escape sequences.\n"
-               "Line editing and history features are disabled.\n"
-               "On Windows, try using Putty instead.\n");
-        linenoiseSetDumbMode(1);
-#if CONFIG_LOG_COLORS
-        /* Since the terminal doesn't support escape sequences,
-         * don't use color codes in the prompt.
-         */
-        prompt = "esp32> ";
-#endif //CONFIG_LOG_COLORS
+    if (addr_family == AF_INET) {
+        struct sockaddr_in *dest_addr_ip4 = (struct sockaddr_in *)&dest_addr;
+        dest_addr_ip4->sin_addr.s_addr = htonl(INADDR_ANY);
+        dest_addr_ip4->sin_family = AF_INET;
+        dest_addr_ip4->sin_port = htons(PORT);
+        ip_protocol = IPPROTO_IP;
+    } else if (addr_family == AF_INET6) {
+        bzero(&dest_addr.sin6_addr.un, sizeof(dest_addr.sin6_addr.un));
+        dest_addr.sin6_family = AF_INET6;
+        dest_addr.sin6_port = htons(PORT);
+        ip_protocol = IPPROTO_IPV6;
     }
 
-    /* Main loop */
-    while(true) {
-        /* Get a line using linenoise.
-         * The line is returned when ENTER is pressed.
-         */
-        char* line = linenoise(prompt);
-        if (line == NULL) { /* Ignore empty lines */
-            continue;
-        }
-        /* Add the command to the history */
-        linenoiseHistoryAdd(line);
-#if CONFIG_STORE_HISTORY
-        /* Save command history to filesystem */
-        linenoiseHistorySave(HISTORY_PATH);
+    int listen_sock = socket(addr_family, SOCK_STREAM, ip_protocol);
+    if (listen_sock < 0) {
+        ESP_LOGE(TAG, "Unable to create socket: errno %d", errno);
+        vTaskDelete(NULL);
+        return;
+    }
+#if defined(CONFIG_EXAMPLE_IPV4) && defined(CONFIG_EXAMPLE_IPV6)
+    // Note that by default IPV6 binds to both protocols, it is must be disabled
+    // if both protocols used at the same time (used in CI)
+    int opt = 1;
+    setsockopt(listen_sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+    setsockopt(listen_sock, IPPROTO_IPV6, IPV6_V6ONLY, &opt, sizeof(opt));
 #endif
 
-        /* Try to run the command */
-        int ret;
-        esp_err_t err = esp_console_run(line, &ret);
-        if (err == ESP_ERR_NOT_FOUND) {
-            printf("Unrecognized command\n");
-        } else if (err == ESP_ERR_INVALID_ARG) {
-            // command was empty
-        } else if (err == ESP_OK && ret != ESP_OK) {
-            printf("Command returned non-zero error code: 0x%x (%s)\n", ret, esp_err_to_name(err));
-        } else if (err != ESP_OK) {
-            printf("Internal error: %s\n", esp_err_to_name(err));
-        }
-        /* linenoise allocates line buffer on the heap, so need to free it */
-        linenoiseFree(line);
+    ESP_LOGI(TAG, "Socket created");
+
+    int err = bind(listen_sock, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
+    if (err != 0) {
+        ESP_LOGE(TAG, "Socket unable to bind: errno %d", errno);
+        ESP_LOGE(TAG, "IPPROTO: %d", addr_family);
+        goto CLEAN_UP;
     }
+    ESP_LOGI(TAG, "Socket bound, port %d", PORT);
+
+    err = listen(listen_sock, 1);
+    if (err != 0) {
+        ESP_LOGE(TAG, "Error occurred during listen: errno %d", errno);
+        goto CLEAN_UP;
+    }
+
+    while (1) {
+
+        ESP_LOGI(TAG, "Socket listening");
+
+        struct sockaddr_in6 source_addr; // Large enough for both IPv4 or IPv6
+        uint addr_len = sizeof(source_addr);
+        con_sock = accept(listen_sock, (struct sockaddr *)&source_addr, &addr_len);
+        if (con_sock < 0) {
+            ESP_LOGE(TAG, "Unable to accept connection: errno %d", errno);
+            break;
+        }
+
+        // Convert ip address to string
+        if (source_addr.sin6_family == PF_INET) {
+            inet_ntoa_r(((struct sockaddr_in *)&source_addr)->sin_addr.s_addr, addr_str, sizeof(addr_str) - 1);
+        } else if (source_addr.sin6_family == PF_INET6) {
+            inet6_ntoa_r(source_addr.sin6_addr, addr_str, sizeof(addr_str) - 1);
+        }
+        ESP_LOGI(TAG, "Socket accepted ip address: %s", addr_str);
+        ESP_LOGI(TAG, "Socket closed");
+
+        con_handle();
+        con_sock = -1;
+    }
+
+CLEAN_UP:
+    close(listen_sock);
+    vTaskDelete(NULL);
 }
+
+
+

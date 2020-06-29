@@ -1,4 +1,4 @@
-#define LOG_LOCAL_LEVEL ESP_LOG_INFO
+//#define LOG_LOCAL_LEVEL ESP_LOG_INFO
 
 #include <exception>
 #include <math.h>
@@ -14,7 +14,7 @@
 #include "freertos/task.h"
 
 #ifdef CONFIG_ENABLE_ROS2
-#include <ros2esp.h>
+#include "ros2esp.h"
 #endif
 
 #include "driver/i2c.h"
@@ -32,6 +32,8 @@
 #include "ssd1306_default_if.h"
 #include "ssd1306_draw.h"
 #include "ssd1306_font.h"
+
+#include "console.h"
 
 static const char* TAG = "I2C";
 
@@ -58,6 +60,8 @@ static const char* TAG = "I2C";
 	
 extern ip4_addr_t s_ip_addr;
 struct SSD1306_Device I2CDisplay;
+
+double ubat = 0.0;
 
 /**
  * @brief 
@@ -566,7 +570,8 @@ static void i2c_task(void* param)
 #endif
 
     try {
-	i2cnode_set_u16(PWRNODE_I2C_ADDR, 0x10, 30); // update TWI_MEM_SHDWNCNT 
+	i2cnode_set_u16(PWRNODE_I2C_ADDR, 0x10, 60); // update TWI_MEM_SHDWNCNT 
+	//i2cnode_set_u16(PWRNODE_I2C_ADDR, 0x18, 12500); // sty on with ubat>12.5V
 	
 	i2cnode_set_i16(MOTORNODE_I2C_ADDR, 0x20, (int16_t)MOTOR_P);
 	i2cnode_set_i16(MOTORNODE_I2C_ADDR, 0x22, (int16_t)MOTOR_I);
@@ -580,6 +585,7 @@ static void i2c_task(void* param)
     }
 
     while(1) {
+        bool keepon = false;
 	try {
 	    uint16_t ubat_mV = i2cnode_get_u16(PWRNODE_I2C_ADDR, 0x28);
 	    int16_t isolar_mA = i2cnode_get_i16(PWRNODE_I2C_ADDR, 0x30);
@@ -591,6 +597,8 @@ static void i2c_task(void* param)
 
 	    i2cnode_set_u16(MOTORNODE_I2C_ADDR, 0x0A, 0xffff); // TWI_REG_U16_AUTOBREAK
 
+        ubat = (double)ubat_mV/1000.0;
+        
 #ifdef ENABLE_OLED
 	    int y = 0;
 	    int s = 5;
@@ -659,8 +667,8 @@ static void i2c_task(void* param)
 #ifdef CONFIG_ENABLE_ROS2
 	    if(ros2ready(&ros2node)) {
 			
-		i2cnode_set_u16(PWRNODE_I2C_ADDR, 0x10, 120); // update TWI_MEM_SHDWNCNT while ROS is connected
-			
+        keepon = true;
+        
 		{
 		    auto msg_ubat = std_msgs::Float32();
 		    msg_ubat.data = ubat_mV / 1000.0;
@@ -700,6 +708,12 @@ static void i2c_task(void* param)
 	    }
 	    ros2::spin(&ros2node);
 #endif
+
+        if(keepon==true || console_connected()==true)
+        {
+        	//i2cnode_set_u16(PWRNODE_I2C_ADDR, 0x10, 5*60); // update TWI_MEM_SHDWNCNT while ROS is connected            
+        }
+
 	    i2cnode_set_u8(MOTORNODE_I2C_ADDR, 0x0f, 2); // Motor Driver Watchdog Reset
 	} catch(int err) {
 	    ESP_LOGE(TAG, "I2C exception err=0x%02x", err);

@@ -1,8 +1,8 @@
-PROJECT_NAME := esp32-cam-demo
+PROJECT_NAME := ros2node
 
 include $(IDF_PATH)/make/project.mk
 
-doota: app
+doota: 
 	curl 192.168.1.75:8032 --data-binary @- < build/$(PROJECT_NAME).bin
 
 udplog:

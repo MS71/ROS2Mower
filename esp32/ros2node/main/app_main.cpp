@@ -7,7 +7,7 @@
 //     http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
+// under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
@@ -28,7 +28,7 @@
 #include "ota_server.h"
 
 #ifdef CONFIG_ENABLE_ROS2
-#include <ros2esp.h>
+#include "ros2esp.h"
 #endif
 
 #include "driver/gpio.h"
@@ -50,7 +50,7 @@
 #include "esp_pm.h"
 
 extern "C" {
-#include "ulp-util.h" // my ulp_init(), ulp_start()
+//#include "ulp-util.h" // my ulp_init(), ulp_start()
 }
 
 #include "lwip/err.h"
@@ -107,7 +107,7 @@ static const char* TAG = "MAIN";
 
 EventGroupHandle_t s_wifi_event_group;
 const int CONNECTED_BIT = BIT0;
-ip4_addr_t s_ip_addr = {};
+esp_ip4_addr_t s_ip_addr = {};
 uint8_t s_ip_addr_changed = 1;
 
 int ros2_sock = -1;
@@ -216,75 +216,20 @@ static void sd_test_task(void* param)
     }
 
 #endif
-static vprintf_like_t my_deflog = NULL;
-static char mylog_linebuf[512];
-static int mylog_fd = -1;
-struct sockaddr_in destAddr;
-int my_log(const char *format, va_list args)
-{
-	if( my_deflog != NULL )
-	{
-		//my_deflog(format,args);
-	}
-
-	vsnprintf (mylog_linebuf, sizeof(mylog_linebuf)-1, format, args);
-	int n = strlen(mylog_linebuf);	
-	if(n > 0 )
-	{
-#if 0
-		if( mylog_fd == -1 )
-		{
-		}
-
-#endif
-		
-#if 1		
-		if( mylog_fd == -1 )
-		{
-			mylog_fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
-			if( mylog_fd != -1 )
-			{
-				char addr_str[128];
-				int addr_family;
-				int ip_protocol;
-				destAddr.sin_addr.s_addr = inet_addr("192.168.1.63");
-				destAddr.sin_family = AF_INET;
-				destAddr.sin_port = htons(30000);
-				addr_family = AF_INET;
-				inet_ntoa_r(destAddr.sin_addr, addr_str, sizeof(addr_str) - 1);
-			}
-		}
-		if( mylog_fd != -1 )
-		{
-			int bytes_sent = sendto(mylog_fd, (uint8_t*)&mylog_linebuf[0], n, 0, (struct sockaddr *)&destAddr, sizeof(destAddr));
-			if (-1 != bytes_sent)
-			{
-				return n;
-			}
-			else
-			{
-				close(mylog_fd);
-				mylog_fd = -1;
-			}					
-		}
-#endif		
-	}
-	return 0;
-}
 
 extern "C" {
-void app_main();
+void app_main(void);
 }
 
-void app_main()
+void app_main(void)
 {
     /* Print chip information */
     //esp_log_level_set("i2c", ESP_LOG_INFO);
     //esp_log_level_set("gpio", ESP_LOG_WARN);
 
     ESP_LOGI(TAG, "init ULP ...");
-    ulp_init();
-    ulp_start();
+    //ulp_init();
+    //ulp_start();
 
     esp_chip_info_t chip_info;
     esp_chip_info(&chip_info);
@@ -305,7 +250,7 @@ void app_main()
     initialise_wifi();
     xTaskCreate(&ota_server_task, "ota_server_task", 4096, NULL, 5, NULL);
 
-	my_deflog = esp_log_set_vprintf(my_log);
+	//my_deflog = esp_log_set_vprintf(my_log);
 	ESP_LOGW(TAG, "ready");
 
 #ifdef CONFIG_ENABLE_ROS2
@@ -429,6 +374,7 @@ static esp_err_t event_handler(void* ctx, system_event_t* event)
 
 	esp_wifi_set_ps(WIFI_PS_MAX_MODEM);
 
+    ESP_LOGI(TAG, "Wifi Connected");
 	break;
     case SYSTEM_EVENT_STA_DISCONNECTED:
 	esp_wifi_connect();

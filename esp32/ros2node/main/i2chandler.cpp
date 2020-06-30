@@ -541,6 +541,7 @@ static void i2c_task(void* param)
     //int tmpcnt = 0;
 
 	esp_pm_lock_create(ESP_PM_NO_LIGHT_SLEEP,0,"i2clock",&pmlock);
+	esp_pm_lock_acquire(pmlock);
 	
 #ifdef ENABLE_OLED
 	uint8_t oled_update = 0;
@@ -732,7 +733,7 @@ static void i2c_task(void* param)
 	} catch(int err) {
 	    ESP_LOGE(TAG, "I2C exception err=0x%02x", err);
 	}
-	esp_pm_lock_acquire(pmlock);
+	esp_pm_lock_release(pmlock);
 
 	vTaskDelay(50 / portTICK_PERIOD_MS);
     }

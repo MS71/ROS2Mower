@@ -28,7 +28,11 @@ ISR(WDT_vect)
       v = (u8TWIMem[TWI_MEM_SHDWNCNT+0] | (u8TWIMem[TWI_MEM_SHDWNCNT+1]<<8));
       if( v > 0 )
       {
-        v--;
+        if( ubat_mv < ((u8TWIMem[TWI_MEM_STAYONUBat+1]<<8) | u8TWIMem[TWI_MEM_STAYONUBat+0]) )
+        {
+          v--;
+        }
+
         if( v == 0 )
         {
           pm_shdwn = 1;
@@ -119,6 +123,10 @@ void pm_init()
   u8TWIMem[TWI_MEM_SHDWNREL+1] = (DEF_SHUTDOWNDELAY>>8)&0xff;
   u8TWIMem[TWI_MEM_PWRUPREL+0] = (DEF_POWERUPDELAY>>0)&0xff;
   u8TWIMem[TWI_MEM_PWRUPREL+1] = (DEF_POWERUPDELAY>>8)&0xff;
+
+  u8TWIMem[TWI_MEM_STAYONUBat+0] = ((99999)>>0)&0xff;
+  u8TWIMem[TWI_MEM_STAYONUBat+1] = (99999>>8)&0xff;
+
 
   pinMode(PIN_ON,OUTPUT);
   digitalWrite(PIN_ON,LOW); // off 
@@ -330,6 +338,7 @@ void pm_loop()
       {
         pm_shdwn = 1;
       }
+           
       if( pm_shdwn == 1 )
       {
         pm_shdwn = 0;

@@ -30,10 +30,11 @@
                        // (0x06)
 #define TWI_MEM_PMSW      (0x08)
                        
-#define TWI_MEM_SHDWNCNT  (0x10)
-#define TWI_MEM_PWRUPCNT  (0x12)
-#define TWI_MEM_SHDWNREL  (0x14)
-#define TWI_MEM_PWRUPREL  (0x16)
+#define TWI_MEM_SHDWNCNT   (0x10)
+#define TWI_MEM_PWRUPCNT   (0x12)
+#define TWI_MEM_SHDWNREL   (0x14)
+#define TWI_MEM_PWRUPREL   (0x16)
+#define TWI_MEM_STAYONUBat (0x18)
 
 #define TWI_MEM_U1        (0x20)
 #define TWI_MEM_U2        (0x22)

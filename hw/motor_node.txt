@@ -1,0 +1,28 @@
+Variants:
+=========
+							PA0	PA1	PA2	PA3	PA4	PA5	PA6	PA7	PB0	PB1	PB2	PB3
+							================================================================================================
+
+ATTINY84
+========
+A: T84+L298, dual Motor, single encoder			MB_E1	MA_E1	MA_A	MB_B	SCL	INT	SDA	MB_PWM	MA_B	MB_A	MA_PWM	RESET/dW
+							PCINT0	PCINT1	o	o	-	-	-	OC0B	o	o	OC0A	-
+
+B: T84+L298, dual Motor, dual encoder, 2*NAND: 		MB_E1	MA_E1	MA_A	MB_E2	SCL	INT	SDA	MB_PWM	MA_E2	MB_A	MA_PWM	RESET/dW
+							PCINT0	PCINT1	o	PCINT3	-	-	-	OC0B	PCINT8	o	OC0A	-
+
+C: T84+VNH2SP30, single Motor, dual encoder: 		LED	MA_E2	MA_A	MA_CS	SCL	INT	SDA	MA_E1	MA_B	MA_EN	MA_PWM	RESET/dW
+							o	PCINT1	o	ADC3	-	-	-	ICP	PCINT8	o	OC0A	-
+
+ATTINY841
+=========
+D: T841+L298, dual Motor, single encoder: 		MA_A	MA_PWM	MB_PWM	MB_B	SCL	INT	SDA	MB_E1	MA_B	MB_A	MA_E1	RESET/dW
+							-	T0CC0	T0CC1	o	-	-	-	ICP1	o	o	ICP2	-
+
+E: T841+L298, dual Motor, dual encoder, 2*NAND: 	MA_A	MA_PWM	MB_PWM	MB_E2	SCL	INT	SDA	MB_E1	MA_E2	MB_A	MA_E1	RESET/dW
+							-	T0CC0	T0CC1	ADC3	-	-	-	ICP1	PCINT8	o	ICP2	-
+
+F: T841+VNH2SP30, single Motor, dual encoder: 		LED	MA_PWM	MA_A	MA_CS	SCL	INT	SDA	MA_E1	MA_E2	MA_EN	MA_B	RESET/dW
+							o	T0CC0	o	ADC3	-	-	-	ICP1	PCINT8	o	o	-
+
+

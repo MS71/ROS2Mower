@@ -26,7 +26,8 @@
 #define PIN_PWMB	PB2
 #define PIN_INT  	PA5
 
-#define USE_T1
+//#define DEBUG_INT(_ch_,_v_) if( main_loop_int_pulse == _ch_ ) INTOUT(_v_);
+#define DEBUG_INT(_ch_,_v_) 
 
 #define INTOUT(_v_) \
     { \
@@ -51,14 +52,17 @@
 #define TOGGLE_PIN(_port_,_pin_) \
 	_port_ = (_port_&(~(1<<(_pin_)))) | ((~(_port_))&(1<<(_pin_)))
 
-int16_t k_p = (int16_t)((0.50)*SCALING_FACTOR);
+int16_t k_p = (int16_t)((0.30)*SCALING_FACTOR);
 int16_t k_i = (int16_t)((0.01)*SCALING_FACTOR);
-int16_t k_d = (int16_t)((0.0)*SCALING_FACTOR);
+int16_t k_d = (int16_t)((0.01)*SCALING_FACTOR);
 
 uint8_t main_loop_int_pulse = 0;
 uint8_t i2c_wdt_reset = 0;
 uint16_t boot_counter = 0;
 uint16_t eeFooByteArray1[1] EEMEM;
+
+uint8_t motor_enc_tp = 2;
+uint8_t motor_stop_tp = 16;
 
 typedef struct
 {
@@ -70,6 +74,8 @@ typedef struct
 
 	int16_t   i16_encoder;
   	uint32_t  u32_encperiod;
+    uint16_t  u16_t1_cnt;
+    uint16_t  u16_t1_tcnt1;
 
 	int64_t   i64_encoder;
 	int8_t    i8_encoder_step;
@@ -98,28 +104,18 @@ struct
 	uint16_t delay_ms;
 } motor_test_01[MOTOR_TEST_01_STEPS] = {};
 
-volatile uint64_t u64_time_us = 0;
+volatile uint64_t u32_time_us = 0;
+
 volatile uint8_t u8Tick = 0;
 volatile uint8_t u8HandlePIDFlag = 0;
 
 void handlePID();
 void TIM0_65536us();
 
-#ifdef USE_T1
 static uint64_t get_time_us()
 {
-	volatile uint32_t tov1 = TIFR1&1;
-	volatile uint32_t tcnt0 = (tov1<<16) | TCNT1;
-	return u64_time_us + tcnt0/8;
+	return (uint64_t)u32_time_us*8192;
 }
-#else
-static uint64_t get_time_us()
-{
-	volatile uint16_t tov0 = TIFR0&1;
-	volatile uint16_t tcnt0 = (tov0<<8) | TCNT0;
-	return u64_time_us + tcnt0;
-}
-#endif
 
 #ifdef DEBUGUART
 /********************************************************************************
@@ -142,7 +138,7 @@ void uart_handle()
 {
 	if( uart_char_state != 0xff )
 	{
-		uint8_t bitidx = (uart_char_state++)/13; // 300.48 BAUD
+		uint8_t bitidx = (uart_char_state++); // 300.48 BAUD
 
 		if( bitidx == 0 )
 		{
@@ -168,126 +164,49 @@ void uart_handle()
 }
 #endif
 
-/*
- * ~64ms ISR
- */
-void TIM0_65536us()
-{
-	if( main_loop_int_pulse == 13 ) INTOUT(1);
-	u8Tick = 1;
-	if( main_loop_int_pulse == 13 ) INTOUT(0);
-}
-
 volatile uint8_t tim0_divcnt = 0;
 /*
  * timer0/1 overflow
  */
-#ifdef USE_T1
 ISR (TIM1_OVF_vect)
-#else
-ISR (TIM0_OVF_vect)
-#endif
 {
-	if( main_loop_int_pulse == 3 ) INTOUT(1);
-	if( main_loop_int_pulse == 3 ) INTOUT(0);
-	if( main_loop_int_pulse == 4 ) INTOUT(1);
-	sei();	// allow other IRQs e.g. i2c
+    DEBUG_INT(3,1);
+    DEBUG_INT(3,0);
+    DEBUG_INT(4,1);
 
-#ifdef USE_T1
-  // Freg = F_CPU/(65536) = 8192us 
-  u64_time_us += (1000000UL*65536)/F_CPU;
-  tim0_divcnt++;
-  	if( motor_break_cntdown > 0 )
-		{
-			motor_break_cntdown--;
-			if( motor_break_cntdown == 0 )
-			{
-				motor_mode = MODE_BREAK;
-			}
-		}
-#else
-  // Freg = F_CPU/(8*256) = 256us ~ 3906.25Hz
-  u64_time_us += (1000000UL*8*256)/F_CPU;
-  tim0_divcnt++;
-  if( (tim0_divcnt&3) == 0 )
-  {
-  	if( motor_break_cntdown > 0 )
-		{
-			motor_break_cntdown--;
-			if( motor_break_cntdown == 0 )
-			{
-				motor_mode = MODE_BREAK;
-			}
-		}
-  }
-#endif
+    if( motor_A.u16_t1_cnt < 0xffff ) motor_A.u16_t1_cnt++;
+    if( (motor_A.u16_t1_cnt&63)==0 ) /* > 512ms */
+    {
+      motor_A.u32_encperiod = (((uint32_t)motor_A.u32_encperiod*(motor_stop_tp-1)) + 1000000UL)/motor_stop_tp;
+    }
 
+    if( motor_B.u16_t1_cnt < 0xffff ) motor_B.u16_t1_cnt++;
+    if( (motor_B.u16_t1_cnt&63)==0 ) /* > 512ms */
+    {
+      motor_B.u32_encperiod = (((uint32_t)motor_B.u32_encperiod*(motor_stop_tp-1)) + 1000000UL)/motor_stop_tp;
+    }
+    
+    //sei();
+
+    u32_time_us++;
+    tim0_divcnt++;
+        
 #ifdef DEBUGUART
 	uart_handle();
 #endif
 
-#ifdef USE_T1
   /*
    * ~8ms
    */
   u8HandlePIDFlag = 1;
 
   if( (tim0_divcnt&7) == 0 )
-  {
-   if( (tim0_divcnt&31) == 0 )
-   {
-	   /* every 256 ms
-	    */
-    if( motor_A.u8_encoder_flag == 0 )
-    {
-      motor_A.u32_encperiod = (((uint32_t)motor_A.u32_encperiod*7) + (1048576*128))/8;
-	  if( main_loop_int_pulse == 16 ) INTOUT(1);
-	  if( main_loop_int_pulse == 16 ) INTOUT(0);
-    }
-    motor_A.u8_encoder_flag = 0;
-
-    if( motor_B.u8_encoder_flag == 0 )
-    {
-      motor_B.u32_encperiod = (((uint32_t)motor_B.u32_encperiod*7) + (1048576*128))/8;
-	  if( main_loop_int_pulse == 17 ) INTOUT(1);
-	  if( main_loop_int_pulse == 17 ) INTOUT(0);
-    }
-    motor_B.u8_encoder_flag = 0;
-   }
-
-    TIM0_65536us();
+  { /* 64ms */
+    DEBUG_INT(13,1);
+	u8Tick = 1;
+    DEBUG_INT(13,0);
   }
-#else
-if( (tim0_divcnt&31) == 0 )
-	{
-		/*
-		 * ~8ms
-		 */
- 	  u8HandlePIDFlag = 1;
-	}
-
-  if( (tim0_divcnt) == 0 )
-  {
-    if( motor_A.u8_encoder_flag == 0 )
-    {
-      motor_A.u32_encperiod = (((uint32_t)motor_A.u32_encperiod*3) + 262144)/4;
-	  if( main_loop_int_pulse == 16 ) INTOUT(1);
-	  if( main_loop_int_pulse == 16 ) INTOUT(0);
-    }
-    motor_A.u8_encoder_flag = 0;
-
-    if( motor_B.u8_encoder_flag == 0 )
-    {
-      motor_B.u32_encperiod = (((uint32_t)motor_B.u32_encperiod*3) + 262144)/4;
-	  if( main_loop_int_pulse == 17 ) INTOUT(1);
-	  if( main_loop_int_pulse == 17 ) INTOUT(0);
-    }
-    motor_B.u8_encoder_flag = 0;
-
-    TIM0_65536us();
-  }
-#endif
-	if( main_loop_int_pulse == 4 ) INTOUT(0);
+  DEBUG_INT(4,1);
 }
 
 /********************************************************************************
@@ -296,13 +215,12 @@ if( (tim0_divcnt&31) == 0 )
 ********************************************************************************/
 ISR(PCINT0_vect)
 {
-	uint64_t t = 0;
+    uint16_t tcnt1 = TCNT1;
+    uint8_t _t1ov = (TOV1!=0)?1:0;
 	uint8_t flaga = 0;
 	uint8_t flagb = 0;
 
-	//GIFR |= (1<<PCIF0);
-
-	if( main_loop_int_pulse == 5 ) INTOUT(1);
+	DEBUG_INT(5,1);
 
 	{
 		static uint8_t _enca = 0;
@@ -332,45 +250,38 @@ ISR(PCINT0_vect)
 
 	if( flaga!=0 || flagb!=0 )
 	{
-		 t = get_time_us();
-		 if( main_loop_int_pulse == 6 ) INTOUT(1);
+		 DEBUG_INT(6,1);
 	}
 
 	//sei();	// allow other IRQs e.g. i2c
 
 	if( flaga != 0 )
 	{
-		static uint64_t _ta = 0;
-		if( _ta != 0 )
-		{
-			uint32_t p = ((t - _ta)>1000000)?1000000:(t - _ta);
-			motor_A.u32_encperiod = (((uint32_t)motor_A.u32_encperiod*3) + p)>>2;
-		}
-		_ta = t;
-		motor_A.i16_encoder++;
-		motor_A.i64_encoder += motor_A.i8_encoder_step;
-		motor_A.u8_encoder_flag = 1; 
-		if( main_loop_int_pulse == 8 ) INTOUT(1);
-		if( main_loop_int_pulse == 8 ) INTOUT(0);
+        uint32_t p = (((uint32_t)(motor_A.u16_t1_cnt+_t1ov)<<16) - motor_A.u16_t1_tcnt1 + tcnt1)/8;
+        motor_A.u32_encperiod = (((uint32_t)motor_A.u32_encperiod*(motor_enc_tp-1)) + p)/motor_enc_tp;
+        motor_A.u16_t1_cnt = 0;
+        motor_A.u16_t1_tcnt1 = tcnt1;
+        motor_A.i16_encoder += motor_A.i8_encoder_step;
+        motor_A.i64_encoder += motor_A.i8_encoder_step;
+        motor_A.u8_encoder_flag = 1; 
+        DEBUG_INT(8,1);
+        DEBUG_INT(8,0);
 	}
 
 	if( flagb != 0 )
 	{
-		static uint64_t _tb = 0;
-		if( _tb != 0 )
-		{
-			uint32_t p = ((t - _tb)>1000000)?1000000:(t - _tb);
-			motor_B.u32_encperiod = (((uint32_t)motor_B.u32_encperiod*3) + p)>>2;
-		}
-		_tb = t;
-		motor_B.i16_encoder++;
-		motor_B.i64_encoder += motor_B.i8_encoder_step;
-		motor_B.u8_encoder_flag = 1;
-		if( main_loop_int_pulse == 9 ) INTOUT(1);
-		if( main_loop_int_pulse == 9 ) INTOUT(0);
+        uint32_t p = (((uint32_t)(motor_B.u16_t1_cnt+_t1ov)<<16) + (uint32_t)tcnt1 - (uint32_t)motor_B.u16_t1_tcnt1)/8;
+        motor_B.u32_encperiod = (((uint32_t)motor_B.u32_encperiod*(motor_enc_tp-1)) + p)/motor_enc_tp;
+        motor_B.u16_t1_cnt = 0;
+        motor_B.u16_t1_tcnt1 = tcnt1;
+        motor_B.i16_encoder += motor_B.i8_encoder_step;
+        motor_B.i64_encoder += motor_B.i8_encoder_step;
+        motor_B.u8_encoder_flag = 1;
+        DEBUG_INT(9,1);
+        DEBUG_INT(9,0);
 	}
-	if( main_loop_int_pulse == 5 ) INTOUT(0);
-	if( main_loop_int_pulse == 6 ) INTOUT(0);
+	DEBUG_INT(5,0);
+	DEBUG_INT(6,0);
 }
 
 static void setModeA(uint8_t mode,uint8_t pwm)
@@ -387,29 +298,24 @@ static void setModeB(uint8_t mode,uint8_t pwm)
 
 void calcPID(Motor *m,void(*set_mode)(uint8_t mode,uint8_t pwm))
 {
+  cli();
+  int16_t sp = m->pid_setPoint;
   if( m->u32_encperiod > 0 )
   {
-    int freq = (1000000*SCALING_FACTOR) / m->u32_encperiod;
-    if( freq >= 0x7fff)
-    {
-	  if( main_loop_int_pulse == 15 ) INTOUT(1);
-	  if( main_loop_int_pulse == 15 ) INTOUT(0);
-      freq = 0x7fff;
-    }
-    m->pid_processValue = freq;
+    m->pid_processValue = (1000000UL) / m->u32_encperiod;
+    sei();
   }
   else
   {
-	if( main_loop_int_pulse == 14 ) INTOUT(1);
-	if( main_loop_int_pulse == 14 ) INTOUT(0);
-    m->pid_processValue = 0x7fff;
+    sei();
+    return;
   }
 
   if( m->pid_setPoint > 0 )
   {
     m->i8_encoder_step = 1;
 
-    m->pid_Value = pid_Controller(m->pid_setPoint, m->pid_processValue, &m->pid);
+    m->pid_Value = pid_Controller(sp, m->pid_processValue, &m->pid);
     m->pwm = ((((int32_t)m->pid_Value)*255)/SCALING_FACTOR);
     if( m->pid_Value > 0 )
     {
@@ -481,7 +387,7 @@ void handle_motor_test_01()
 
 		if( motor_test_01[step].delay_ms != 0 )
 		{
-			if( u64_time_us >= _u64_time_us )
+			if( get_time_us() >= _u64_time_us )
 			{
 				if( motor_mode==MODE_TEST_01 )
 				{
@@ -517,7 +423,7 @@ void handle_motor_test_01()
 				}
 				/* next ...
 				 */
-				_u64_time_us = u64_time_us +
+				_u64_time_us = get_time_us() +
 					(1000UL*motor_test_01[step].delay_ms);
 				step++;
 			}
@@ -577,7 +483,7 @@ volatile uint8_t u8TWITmpIdx = 0;
  */
 void i2c_TwiRxHandler( uint16_t idx, uint8_t data )
 {
-  if( main_loop_int_pulse == 12 ) INTOUT(1);
+  DEBUG_INT(12,1);
   if( idx == 0 )
   {
     u8TWIReg = data;	// store register addr
@@ -615,9 +521,9 @@ void i2c_TwiRxHandler( uint16_t idx, uint8_t data )
 			    default: wdt_enable(WDTO_1S); break;
 			  }
 			}
-			if( main_loop_int_pulse == 11 ) INTOUT(1);
+			DEBUG_INT(11,1);
 			wdt_reset();
-			if( main_loop_int_pulse == 11 ) INTOUT(0);
+			DEBUG_INT(11,0);
 		 break;
 		 case TWI_REG_RX(TWI_REG_U16_BOOTCOUNTER):
 			boot_counter = 0;
@@ -707,7 +613,7 @@ void i2c_TwiRxHandler( uint16_t idx, uint8_t data )
 	     break;
      }
   }
-  if( main_loop_int_pulse == 12 ) INTOUT(0);
+  DEBUG_INT(12,0);
 }
 
 /*
@@ -717,14 +623,17 @@ uint8_t i2c_TwiTxHandler( uint16_t idx )
 {
   uint8_t i = 0;
   uint8_t v = 0;
-  if( main_loop_int_pulse == 12 ) INTOUT(1);
+  DEBUG_INT(12,1);
   switch(u8TWIReg+idx)
   {
 	  case TWI_REG_TX(TWI_REG_U64_CLOCK_US):
-	    for(i=0;i<TWI_REG_BYTES(TWI_REG_U64_CLOCK_US);i++)
-		{
-	      u8TWITmp[(u8TWITmpIdx+i)&15] = (u64_time_us>>(i*8))&0xff;
-		}
+      {
+          uint64_t t = get_time_us();
+	      for(i=0;i<TWI_REG_BYTES(TWI_REG_U64_CLOCK_US);i++)
+		  {
+	        u8TWITmp[(u8TWITmpIdx+i)&15] = (t>>(i*8))&0xff;
+		  }
+      }
  	  break;
 	  case TWI_REG_TX(TWI_REG_U16_BOOTCOUNTER):
 	    for(i=0;i<TWI_REG_BYTES(TWI_REG_U16_BOOTCOUNTER);i++)
@@ -853,7 +762,7 @@ uint8_t i2c_TwiTxHandler( uint16_t idx )
   v = u8TWITmp[u8TWITmpIdx&15];
   u8TWITmp[u8TWITmpIdx&15] = 0;
   u8TWITmpIdx++;
-  if( main_loop_int_pulse == 12 ) INTOUT(0);
+  DEBUG_INT(12,0);
   return v;
 }
 
@@ -882,33 +791,25 @@ int main(void)
 
 	PCMSK1 = 0;
 	PCMSK0 = 0;
-  	PCMSK0 |= (1<<PCINT0);
-	PCMSK0 |= (1<<PCINT1);
-	GIMSK  = (1<<PCIE0);
-	GIFR |= (1<<PCIF0);
+  	
+  PCMSK0 |= (1<<PCINT0);
+  PCMSK0 |= (1<<PCINT1);
+  GIMSK  = (1<<PCIE0);
+  GIFR |= (1<<PCIF0);
 
-	MODE_A(0);
-	MODE_B(0);
+  MODE_A(0);
+  MODE_B(0);
 
-    OCR0A = 0;
-    OCR0B = 0;
+  OCR0A = 0;
+  OCR0B = 0;
     
-#ifdef USE_T1
-	// fast PWM mode
-    TCCR0A = (1 << COM0A1) | (0 << COM0A0) | (1 << COM0B1) | (0 << COM0B0) | (0 << WGM01) | (1 << WGM00);
-    TCCR0B = (0 << WGM02) | (1 << CS02) | (0 << CS01) | (0 << CS00);   // clock source = CLK/1, start PWM
-#else
-	// fast PWM mode
-    TCCR0A = (1 << COM0A1) | (0 << COM0A0) | (1 << COM0B1) | (0 << COM0B0) | (1 << WGM01) | (1 << WGM00);
-    TCCR0B = (0 << WGM02) | (0 << CS02) | (1 << CS01) | (0 << CS00);   // clock source = CLK/8, start PWM
-    // Overflow Interrupt erlauben
-    TIMSK0 |= (1<<TOIE0);
-#endif
+  // fast PWM mode
+  TCCR0A = (1 << COM0A1) | (0 << COM0A0) | (1 << COM0B1) | (0 << COM0B0) | (0 << WGM01) | (1 << WGM00);
+  //TCCR0B = (0 << WGM02) | (1 << CS02) | (0 << CS01) | (0 << CS00);   // clock source = CLK/1, start PWM
+  TCCR0B = (0 << WGM02) | (0 << CS02) | (0 << CS01) | (1 << CS00);   // clock source = CLK/1, start PWM
 
-#ifdef USE_T1
-  TCCR1B = (0 << CS02) | (0 << CS01) | (1 << CS00);   // clock source = CLK/8, start PWM
+  TCCR1B = (0 << CS12) | (0 << CS11) | (1 << CS10);   // clock source = CLK/8, start PWM
   TIMSK1 |= (1<<TOIE1);
-#endif
 
   pid_Init(k_p,k_i,k_d, &(motor_A.pid));
   pid_Init(k_p,k_i,k_d, &(motor_B.pid));
@@ -963,16 +864,16 @@ int main(void)
 #if 0
 	motor_mode = MODE_PWM;
 	setModeA(2,0);
-	setModeB(2,1);
+	setModeB(2,30);
 #endif
 
 #if 0
 	motor_mode = MODE_PID;
-	motor_A.pid_setPoint = 0;
-	motor_B.pid_setPoint = 394;
+	motor_A.pid_setPoint = 100;
+	motor_B.pid_setPoint = 100;
 #endif
 
-	main_loop_int_pulse = 17;
+	main_loop_int_pulse = 0;
 
 	wdt_enable(WDTO_2S);   // Watchdog auf 1 s stellen
 
@@ -981,9 +882,17 @@ int main(void)
 			if( u8HandlePIDFlag == 1 )
 			{
 				u8HandlePIDFlag = 0;
-				if( main_loop_int_pulse == 7 ) INTOUT(1);
+				DEBUG_INT(7,1);
+                if( motor_break_cntdown > 0 )
+                {
+                    motor_break_cntdown--;
+                    if( motor_break_cntdown == 0 )
+                    {
+                        motor_mode = MODE_BREAK;
+                    }
+                }
 				handlePID();
-				if( main_loop_int_pulse == 7 ) INTOUT(0);
+				DEBUG_INT(7,0);
 			}
 
 			if( u8Tick == 1 )
@@ -997,42 +906,27 @@ int main(void)
 				static uint64_t _t = 0;
 				if( u64_time_us > _t )
 				{
-					_t = u64_time_us + 3000000UL;
-					printf("A:%3d,%3d,%4d ",
-						motor_A.pid_setPoint,
-						motor_A.pid_processValue,
-						motor_A.pid_Value);
-					printf(",%3d ",
-						motor_A.pwm);
-					printf("\n");
+					_t = u64_time_us + 1000000UL;
+					printf("%ld",(long)motor_B.u32_encperiod);
 				}
 			}
 #endif
 
-#if 1
-
-			if( main_loop_int_pulse == 1 )
-			{
-			  INTOUT(1);
-			  INTOUT(0);
-			}
+            DEBUG_INT(1,1);
+            DEBUG_INT(1,0);
 			if( i2c_idle() != 0 )
 			{
-				if( main_loop_int_pulse == 2 )
-				{
-				  INTOUT(1);
-				  INTOUT(0);
-				}
+                DEBUG_INT(2,1);
+                DEBUG_INT(2,0);
 				if(i2c_wdt_reset == 0) wdt_reset();
 
 			}
 			
 			//sleep ...
-			if( main_loop_int_pulse == 10 ) INTOUT(1);
+            DEBUG_INT(10,1);
 			set_sleep_mode(SLEEP_MODE_IDLE);
 			sleep_mode();
-			if( main_loop_int_pulse == 10 ) INTOUT(0);
-#endif
+            DEBUG_INT(10,0);
     }
 
     return 0;  // the program executed successfully

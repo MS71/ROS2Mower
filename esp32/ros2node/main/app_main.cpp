@@ -48,6 +48,7 @@
 #include "sdmmc_cmd.h"
 #include "rom/uart.h"
 #include "esp_pm.h"
+#include "esp_spiffs.h"
 
 extern "C" {
 //#include "ulp-util.h" // my ulp_init(), ulp_start()
@@ -100,7 +101,7 @@ static void initialise_wifi(void);
 
 sdmmc_card_t* card = NULL;
 bool sdcard_ready = true;
-
+ 
 bool camera_ready = true;
 
 static const char* TAG = "MAIN";
@@ -244,8 +245,37 @@ void app_main(void)
 
     esp_err_t err = nvs_flash_init();
     if(err != ESP_OK) {
-	ESP_ERROR_CHECK(nvs_flash_erase());
-	ESP_ERROR_CHECK(nvs_flash_init());
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        ESP_ERROR_CHECK(nvs_flash_init());
+    }
+
+    esp_vfs_spiffs_conf_t conf = {
+      .base_path = "/spiffs",
+      .partition_label = NULL,
+      .max_files = 5,
+      .format_if_mount_failed = true
+    };
+    
+    // Use settings defined above to initialize and mount SPIFFS filesystem.
+    // Note: esp_vfs_spiffs_register is an all-in-one convenience function.
+    esp_err_t ret = esp_vfs_spiffs_register(&conf);
+
+    if (ret != ESP_OK) {
+        if (ret == ESP_FAIL) {
+            ESP_LOGE(TAG, "Failed to mount or format filesystem");
+        } else if (ret == ESP_ERR_NOT_FOUND) {
+            ESP_LOGE(TAG, "Failed to find SPIFFS partition");
+        } else {
+            ESP_LOGE(TAG, "Failed to initialize SPIFFS (%s)", esp_err_to_name(ret));
+        }
+    }
+
+    size_t total = 0, used = 0;
+    ret = esp_spiffs_info(NULL, &total, &used);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to get SPIFFS partition information (%s)", esp_err_to_name(ret));
+    } else {
+        ESP_LOGI(TAG, "Partition size: total: %d, used: %d", total, used);
     }
 
     initialise_wifi();
@@ -255,7 +285,30 @@ void app_main(void)
 	ESP_LOGW(TAG, "ready");
 
 #ifdef CONFIG_ENABLE_ROS2
-    ros2::init(ros2_sock, "z600", 2018);
+    {
+        nvs_handle my_handle;
+        esp_err_t err = nvs_open("ros", NVS_READWRITE, &my_handle);
+        if(err == ESP_OK) {
+            char host_name[64] = {};
+            size_t host_name_size = sizeof(host_name);
+            int host_port = 0;
+            nvs_get_str(my_handle, "host", host_name, &host_name_size);
+            nvs_get_i32(my_handle, "port", &host_port);
+            nvs_close(my_handle);
+            if(strlen(host_name) != 0 && host_port != 0) 
+            {
+                ros2::init(ros2_sock, host_name, host_port);
+            }
+            else
+            {
+                //ros2::init(ros2_sock, "", 0);
+            }
+        } 
+        else
+        {
+            //ros2::init(ros2_sock, "", 0);
+        }
+    }
 #endif
 
     i2c_handler_init();

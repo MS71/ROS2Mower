@@ -45,6 +45,7 @@ static int con_sock = -1;
 static vprintf_like_t con_deflog = NULL;
 static char con_log_linebuf[1024];
 static bool shutdown_active = false;
+static bool con_log_on = true;
 
 /**
  * @brief 
@@ -160,6 +161,10 @@ void con_i2c_detect()
  */
 int con_log(const char *format, va_list args)
 {
+	if( con_log_on == false )
+	{
+		return 1;
+	}
     if( con_sock != -1 )
     {
         vsnprintf (con_log_linebuf, sizeof(con_log_linebuf)-1, format, args);
@@ -221,6 +226,10 @@ static void con_handle()
 #endif
                 con_printf("* log_set_level TAG LEVEL # set log level for given tag\n");
                 con_printf("* close                   # close the connection\n");
+                con_printf("* con_remote_set          # set the ip and port for the remote console\n");
+                con_printf("* con_remote_get          # get ip and port for the remote console\n");
+                con_printf("* ros_remote_set          # set the ip and port for the ros host\n");
+                con_printf("* ros_remote_get          # get ip and port for the ros host\n");
             }
             else if(strcasecmp("restart",rx_buffer)==0 || strcasecmp("reboot",rx_buffer)==0)
             {
@@ -387,9 +396,19 @@ static void con_handle()
                     esp_log_level_set(p2,ESP_LOG_VERBOSE);
                 }                
             }
+            else if(strcasecmp("logoff",rx_buffer)==0)
+            {
+				con_log_on = false;
+                con_printf("logoff ...\n");
+            }
+            else if(strcasecmp("logon",rx_buffer)==0)
+            {
+				con_log_on = true;
+                con_printf("logon ...\n");
+            }
             else if(strcasecmp("logerror",rx_buffer)==0)
             {
-                con_printf("logoff ...\n");
+                con_printf("logerror ...\n");
                 esp_log_level_set("*",ESP_LOG_ERROR);
             }
             else if(strcasecmp("logwarn",rx_buffer)==0)

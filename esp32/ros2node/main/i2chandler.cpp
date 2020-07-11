@@ -1,6 +1,6 @@
 //#define LOG_LOCAL_LEVEL ESP_LOG_INFO
-#undef ENABLE_OLED
-#undef ENABLE_BNO055
+#define ENABLE_OLED
+#define ENABLE_BNO055
 
 #include <exception>
 #include <math.h>
@@ -44,8 +44,8 @@
 static const char* TAG = "I2C";
 
 #define I2C_BUS_PORT 0
-#define I2C_BUS_SDA 22
-#define I2C_BUS_SCL 21
+#define I2C_BUS_SDA 26
+#define I2C_BUS_SCL 27
 #define I2C_TIMEOUT_MS 10
 
 #define PWRNODE_I2C_ADDR    0x09
@@ -739,6 +739,20 @@ static void i2c_task(void* param)
     esp_pm_lock_create(ESP_PM_NO_LIGHT_SLEEP, 0, "i2clock", &pmlock);
     esp_pm_lock_acquire(pmlock);
 
+#ifdef ENABLE_OLED
+    uint8_t oled_update = 0;
+    SSD1306_Init_I2C(&I2CDisplay, 128, 64, 0x78 >> 1, -1, I2CDefaultWriteCommand, I2CDefaultWriteData, I2CDefaultReset);
+    SSD1306_DisplayOn(&I2CDisplay);
+    SSD1306_Clear(&I2CDisplay, SSD_COLOR_WHITE);
+    SSD1306_Update(&I2CDisplay);
+#endif
+	
+#ifdef ENABLE_OLED
+    vTaskDelay(100 / portTICK_PERIOD_MS);
+    SSD1306_Clear(&I2CDisplay, SSD_COLOR_BLACK);
+    SSD1306_Update(&I2CDisplay);
+#endif
+
 #ifdef ENABLE_BNO055
     bno055 = new BNO055((i2c_port_t)I2C_BUS_PORT, 0x28);
     if(bno055 != NULL) {
@@ -773,13 +787,6 @@ static void i2c_task(void* param)
             ESP_LOGI(TAG, "I2CThread() BNO055 exception %s", ex.what());
         }
     }
-#endif
-
-#ifdef ENABLE_OLED
-    uint8_t oled_update = 0;
-    SSD1306_Init_I2C(&I2CDisplay, 128, 64, 0x78 >> 1, -1, I2CDefaultWriteCommand, I2CDefaultWriteData, I2CDefaultReset);
-    SSD1306_DisplayOn(&I2CDisplay);
-    SSD1306_Clear(&I2CDisplay, SSD_COLOR_BLACK);
 #endif
 
     try {

@@ -1,3 +1,4 @@
+#if 0
 /*
  * Portions of this file come from OpenMV project (see sensor_* functions in the end of file)
  * Here is the copyright for these parts:
@@ -798,3 +799,4 @@ static void IRAM_ATTR dma_filter_rgb565(const dma_elem_t* src,
 		rgb565_to_888(src[2].sample1, src[2].sample2, &dst[3]);
 	}
 }
+#endif

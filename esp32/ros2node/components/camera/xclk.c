@@ -1,3 +1,4 @@
+#if 0
 #include "driver/gpio.h"
 #include "driver/ledc.h"
 #include "esp_err.h"
@@ -62,3 +63,4 @@ esp_err_t camera_enable_out_clock(camera_config_t* config) {
 void camera_disable_out_clock() {
 	periph_module_disable(PERIPH_LEDC_MODULE);
 }
+#endif

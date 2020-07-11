@@ -43,7 +43,7 @@ static void tcp_server_task(void* pvParameters)
 	.stop_bits = UART_STOP_BITS_1,
 	.flow_ctrl = UART_HW_FLOWCTRL_DISABLE };
     uart_param_config(UART_NUM_1, &uart_config);
-    uart_set_pin(UART_NUM_1, 27, 26, -1, -1);
+    uart_set_pin(UART_NUM_1, 32, 33, -1, -1);
     uart_driver_install(UART_NUM_1, sizeof(rx_buffer) * 2, 0, 0, NULL, 0);
 
     while(1) {

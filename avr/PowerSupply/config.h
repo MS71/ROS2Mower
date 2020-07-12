@@ -29,7 +29,9 @@
 #define TWI_MEM_RTC       (0x04) /* 32Bit */
                        // (0x06)
 #define TWI_MEM_PMSW      (0x08)
-                       
+
+#define TWI_MEM_WDT       (0x0A)
+
 #define TWI_MEM_SHDWNCNT   (0x10)
 #define TWI_MEM_PWRUPCNT   (0x12)
 #define TWI_MEM_SHDWNREL   (0x14)

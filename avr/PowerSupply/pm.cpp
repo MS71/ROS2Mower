@@ -42,6 +42,20 @@ ISR(WDT_vect)
       }
     }
 
+    {
+      v = (u8TWIMem[TWI_MEM_WDT+0] | (u8TWIMem[TWI_MEM_WDT+1]<<8));
+      if( v > 0 )
+      {
+        if( v == 0 )
+        {
+          /* reset */
+          MCUSR |= (1<<WDRF);
+        }
+        u8TWIMem[TWI_MEM_WDT+0] = (v>>0)&0xff; 
+        u8TWIMem[TWI_MEM_WDT+1] = (v>>8)&0xff;
+      }
+    }
+
     if(digitalRead(PIN_ON)==0)
     {
       // off
@@ -56,7 +70,7 @@ ISR(WDT_vect)
         u8TWIMem[TWI_MEM_PWRUPCNT+0] = (v>>0)&0xff;
         u8TWIMem[TWI_MEM_PWRUPCNT+1] = (v>>8)&0xff;
       }
-    }
+    }    
 
     pm_rtc++;
 
@@ -126,6 +140,9 @@ void pm_init()
 
   u8TWIMem[TWI_MEM_STAYONUBat+0] = ((99999)>>0)&0xff;
   u8TWIMem[TWI_MEM_STAYONUBat+1] = (99999>>8)&0xff;
+
+  u8TWIMem[TWI_MEM_WDT+0] = (0>>0)&0xff; 
+  u8TWIMem[TWI_MEM_WDT+1] = (0>>8)&0xff;
 
 
   pinMode(PIN_ON,OUTPUT);

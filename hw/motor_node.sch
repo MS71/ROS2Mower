@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE eagle SYSTEM "eagle.dtd">
-<eagle version="9.5.2">
+<eagle version="9.6.2">
 <drawing>
 <settings>
 <setting alwaysvectorfont="no"/>
 <setting keepoldvectorfont="yes"/>
 <setting verticaltext="up"/>
 </settings>
-<grid distance="0.1" unitdist="inch" unit="mil" style="lines" multiple="1" display="no" altdistance="50" altunitdist="mil" altunit="mil"/>
+<grid distance="50" unitdist="mil" unit="mil" style="lines" multiple="1" display="no" altdistance="0.01" altunitdist="inch" altunit="inch"/>
 <layers>
 <layer number="1" name="Top" color="4" fill="1" visible="no" active="no"/>
 <layer number="16" name="Bottom" color="1" fill="1" visible="no" active="no"/>
@@ -22828,12 +22828,33 @@ Source: www.kingbright.com</description>
 <text x="-1.27" y="1.524" size="1.27" layer="25" ratio="10">&gt;NAME</text>
 <text x="0" y="0.6" size="0.0254" layer="27">&gt;VALUE</text>
 </package>
+<package name="1,6/0,8" urn="urn:adsk.eagle:footprint:30809/1" library_version="2">
+<description>&lt;b&gt;THROUGH-HOLE PAD&lt;/b&gt;</description>
+<wire x1="-0.762" y1="0.762" x2="-0.508" y2="0.762" width="0.1524" layer="21"/>
+<wire x1="-0.762" y1="0.762" x2="-0.762" y2="0.508" width="0.1524" layer="21"/>
+<wire x1="0.762" y1="0.762" x2="0.762" y2="0.508" width="0.1524" layer="21"/>
+<wire x1="0.762" y1="0.762" x2="0.508" y2="0.762" width="0.1524" layer="21"/>
+<wire x1="0.762" y1="-0.508" x2="0.762" y2="-0.762" width="0.1524" layer="21"/>
+<wire x1="0.762" y1="-0.762" x2="0.508" y2="-0.762" width="0.1524" layer="21"/>
+<wire x1="-0.508" y1="-0.762" x2="-0.762" y2="-0.762" width="0.1524" layer="21"/>
+<wire x1="-0.762" y1="-0.762" x2="-0.762" y2="-0.508" width="0.1524" layer="21"/>
+<circle x="0" y="0" radius="0.635" width="0.1524" layer="51"/>
+<pad name="1" x="0" y="0" drill="0.8128" diameter="1.6002" shape="octagon"/>
+<text x="-0.762" y="1.016" size="1.27" layer="25" ratio="10">&gt;NAME</text>
+<text x="0" y="0.6" size="0.0254" layer="27">&gt;VALUE</text>
+</package>
 </packages>
 <packages3d>
 <package3d name="2,54/0,8" urn="urn:adsk.eagle:package:30838/1" type="box" library_version="2">
 <description>THROUGH-HOLE PAD</description>
 <packageinstances>
 <packageinstance name="2,54/0,8"/>
+</packageinstances>
+</package3d>
+<package3d name="1,6/0,8" urn="urn:adsk.eagle:package:30830/1" type="box" library_version="2">
+<description>THROUGH-HOLE PAD</description>
+<packageinstances>
+<packageinstance name="1,6/0,8"/>
 </packageinstances>
 </package3d>
 </packages3d>
@@ -22863,6 +22884,27 @@ Source: www.kingbright.com</description>
 <technologies>
 <technology name="">
 <attribute name="POPULARITY" value="5" constant="no"/>
+</technology>
+</technologies>
+</device>
+</devices>
+</deviceset>
+<deviceset name="1,6/0,8" urn="urn:adsk.eagle:component:30848/2" prefix="PAD" uservalue="yes" library_version="2">
+<description>&lt;b&gt;THROUGH-HOLE PAD&lt;/b&gt;</description>
+<gates>
+<gate name="P" symbol="PAD" x="0" y="0"/>
+</gates>
+<devices>
+<device name="" package="1,6/0,8">
+<connects>
+<connect gate="P" pin="P" pad="1"/>
+</connects>
+<package3dinstances>
+<package3dinstance package3d_urn="urn:adsk.eagle:package:30830/1"/>
+</package3dinstances>
+<technologies>
+<technology name="">
+<attribute name="POPULARITY" value="15" constant="no"/>
 </technology>
 </technologies>
 </device>
@@ -23441,6 +23483,12 @@ You are welcome to use this library for commercial purposes. For attribution, we
 <part name="J_PB2A" library="SparkFun-Jumpers" deviceset="JUMPER-SMT_3_1-NC_PASTE" device="_NO-SILK" package3d_urn="urn:adsk.eagle:package:39291/1" value=""/>
 <part name="J_PB2B" library="SparkFun-Jumpers" deviceset="JUMPER-SMT_2_NO" device="_NO-SILK" package3d_urn="urn:adsk.eagle:package:39277/1" value=""/>
 <part name="D2" library="diode" library_urn="urn:adsk.eagle:library:210" deviceset="DIODE-" device="MINIMELF" package3d_urn="urn:adsk.eagle:package:43429/2"/>
+<part name="100K" library="rcl" library_urn="urn:adsk.eagle:library:334" deviceset="R-EU_" device="M0805" package3d_urn="urn:adsk.eagle:package:23556/2" value="10k"/>
+<part name="10K" library="rcl" library_urn="urn:adsk.eagle:library:334" deviceset="R-EU_" device="M0805" package3d_urn="urn:adsk.eagle:package:23556/2" value="10k"/>
+<part name="C6" library="rcl" deviceset="C-EU" device="C0805" value="100n"/>
+<part name="GND19" library="supply1" deviceset="GND" device=""/>
+<part name="GND20" library="supply1" deviceset="GND" device=""/>
+<part name="P_UM" library="wirepad" library_urn="urn:adsk.eagle:library:412" deviceset="1,6/0,8" device="" package3d_urn="urn:adsk.eagle:package:30830/1"/>
 </parts>
 <sheets>
 <sheet>
@@ -23757,6 +23805,28 @@ You are welcome to use this library for commercial purposes. For attribution, we
 <attribute name="NAME" x="83.82" y="102.0826" size="1.778" layer="95"/>
 <attribute name="VALUE" x="83.82" y="99.2886" size="1.778" layer="96"/>
 </instance>
+<instance part="100K" gate="G$1" x="82.55" y="162.56" smashed="yes">
+<attribute name="NAME" x="78.74" y="164.0586" size="1.778" layer="95"/>
+<attribute name="VALUE" x="78.74" y="159.258" size="1.778" layer="96"/>
+</instance>
+<instance part="10K" gate="G$1" x="87.63" y="157.48" smashed="yes" rot="R90">
+<attribute name="NAME" x="86.1314" y="153.67" size="1.778" layer="95" rot="R90"/>
+<attribute name="VALUE" x="90.932" y="153.67" size="1.778" layer="96" rot="R90"/>
+</instance>
+<instance part="C6" gate="G$1" x="96.52" y="154.94" smashed="yes" rot="R180">
+<attribute name="NAME" x="94.996" y="154.559" size="1.778" layer="95" rot="R180"/>
+<attribute name="VALUE" x="94.996" y="159.639" size="1.778" layer="96" rot="R180"/>
+</instance>
+<instance part="GND19" gate="1" x="87.63" y="149.86" smashed="yes">
+<attribute name="VALUE" x="85.09" y="147.32" size="1.778" layer="96"/>
+</instance>
+<instance part="GND20" gate="1" x="96.52" y="149.86" smashed="yes">
+<attribute name="VALUE" x="93.98" y="147.32" size="1.778" layer="96"/>
+</instance>
+<instance part="P_UM" gate="P" x="72.39" y="162.56" smashed="yes">
+<attribute name="NAME" x="71.247" y="164.4142" size="1.778" layer="95"/>
+<attribute name="VALUE" x="71.247" y="159.258" size="1.778" layer="96"/>
+</instance>
 </instances>
 <busses>
 </busses>
@@ -23843,6 +23913,14 @@ You are welcome to use this library for commercial purposes. For attribution, we
 <segment>
 <pinref part="IC2" gate="G$1" pin="GND"/>
 <pinref part="GND13" gate="1" pin="GND"/>
+</segment>
+<segment>
+<pinref part="10K" gate="G$1" pin="1"/>
+<pinref part="GND19" gate="1" pin="GND"/>
+</segment>
+<segment>
+<pinref part="GND20" gate="1" pin="GND"/>
+<pinref part="C6" gate="G$1" pin="1"/>
 </segment>
 </net>
 <net name="VCC" class="0">
@@ -24413,6 +24491,15 @@ You are welcome to use this library for commercial purposes. For attribution, we
 <wire x1="78.74" y1="71.12" x2="137.16" y2="71.12" width="0.1524" layer="91"/>
 <junction x="78.74" y="71.12"/>
 </segment>
+<segment>
+<pinref part="100K" gate="G$1" pin="2"/>
+<pinref part="10K" gate="G$1" pin="2"/>
+<pinref part="C6" gate="G$1" pin="2"/>
+<wire x1="87.63" y1="162.56" x2="96.52" y2="162.56" width="0.1524" layer="91"/>
+<wire x1="96.52" y1="162.56" x2="96.52" y2="160.02" width="0.1524" layer="91"/>
+<junction x="87.63" y="162.56"/>
+<label x="96.52" y="162.56" size="1.778" layer="95" xref="yes"/>
+</segment>
 </net>
 <net name="PA1" class="0">
 <segment>
@@ -24518,6 +24605,13 @@ You are welcome to use this library for commercial purposes. For attribution, we
 <pinref part="J_PA3" gate="G$1" pin="2"/>
 <wire x1="134.62" y1="68.58" x2="134.62" y2="78.74" width="0.1524" layer="91"/>
 <label x="134.62" y="78.74" size="1.778" layer="95" font="fixed" xref="yes"/>
+</segment>
+</net>
+<net name="N$2" class="0">
+<segment>
+<pinref part="100K" gate="G$1" pin="1"/>
+<pinref part="P_UM" gate="P" pin="P"/>
+<wire x1="74.93" y1="162.56" x2="77.47" y2="162.56" width="0.1524" layer="91"/>
 </segment>
 </net>
 </nets>

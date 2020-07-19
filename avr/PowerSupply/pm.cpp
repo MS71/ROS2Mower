@@ -384,10 +384,9 @@ void pm_loop()
 
   if( digitalRead(PIN_ON) == LOW )
   {
-    system_sleep();
-  }
-  else if( i2c_active() == 0 )
-  {
-    system_sleep();
+    if( i2c_active() == 0 )
+    {
+      system_sleep();
+    }
   }
 }

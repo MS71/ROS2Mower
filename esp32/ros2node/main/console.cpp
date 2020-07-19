@@ -222,7 +222,7 @@ static void con_handle()
             {
                 con_printf("* help                    # print available list of commands\n");
 #ifdef CONFIG_FREERTOS_GENERATE_RUN_TIME_STATS
-                con_printf("* rtstats                 # print runtime stats\n");
+                con_printf("* top                     # print runtime stats\n");
 #endif
                 con_printf("* log_set_level TAG LEVEL # set log level for given tag\n");
                 con_printf("* close                   # close the connection\n");
@@ -230,12 +230,27 @@ static void con_handle()
                 con_printf("* con_remote_get          # get ip and port for the remote console\n");
                 con_printf("* ros_remote_set          # set the ip and port for the ros host\n");
                 con_printf("* ros_remote_get          # get ip and port for the ros host\n");
+                con_printf("* spifs_info              # show some SPIFS information\n");
             }
-            else if(strcasecmp("restart",rx_buffer)==0 || strcasecmp("reboot",rx_buffer)==0)
+            else if(strcasecmp("restart",rx_buffer)==0 )
             {
                 con_printf("restarting ...\n");
                 esp_restart();
                 return;
+            }
+#ifdef CONFIG_ENABLE_I2C_POWER
+            else if(strcasecmp("reboot",rx_buffer)==0 )
+            {
+                i2c_lock();
+                i2cnode_set_u16(PWRNODE_I2C_ADDR, 0x16, 5); /* TWI_MEM_PWRUPREL */
+                i2cnode_set_u16(PWRNODE_I2C_ADDR, 0x10, 2); /* TWI_MEM_SHDWNCNT */
+                //i2c_unlock();
+                con_printf("rebooting ...\n");
+            }
+#endif
+            else if(strcasecmp("test",rx_buffer)==0 )
+            {
+                i2cnode_init_motor();
             }
             else if(strcasecmp("spifs_info",rx_buffer)==0)
             {
@@ -477,6 +492,7 @@ static void con_handle()
                 con_printf("%s",con_log_linebuf);
             }
 #endif
+#ifdef CONFIG_ENABLE_I2C_MOTOR
 #define CMD_VEL_SPEED       0.1
 #define CMD_VEL_ROTSLOW     (2.0*M_PI / 30.0)  
 #define CMD_VEL_ROTFAST     (2.0*M_PI / 10.0)  
@@ -516,6 +532,7 @@ static void con_handle()
             {
                 i2c_set_cmd_vel(-CMD_VEL_SPEED,0.0,-CMD_VEL_ROTSLOW);
             }
+#endif            
             else
             {
                 for(int i=0;i<len;i++) con_printf("%02x",rx_buffer[i]); 

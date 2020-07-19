@@ -12,7 +12,7 @@
 #                is connected.
 # FUSES ........ Parameters for avrdude to flash the fuses appropriately.
 
-TWI_ADDR   = 10
+TWI_ADDR   = 12
 #DEBUGUART  = y
 
 DEVICE     = attiny84

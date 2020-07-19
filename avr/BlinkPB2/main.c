@@ -40,7 +40,7 @@ void TIM0_65536us()
 volatile uint8_t tim0_divcnt = 0;
 ISR (TIM0_OVF_vect)
 {
-	sei();	// allow other IRQs e.g. i2c
+	//sei();	// allow other IRQs e.g. i2c
 
   // Freg = F_CPU/(8*256) = 256us ~ 3906.25Hz
   u64_time_us += (1000000UL*8*256)/F_CPU;
@@ -73,8 +73,7 @@ uint8_t i2c_TwiTxHandler( uint16_t idx )
 int main(void)
 {
 	DDRB |= (1<<PB2);
-	//PORTB &= ~(1<<PB2);
-	PORTB |= (1<<PB2);
+	PORTB &= ~(1<<PB2);
 
 	// fast PWM mode
   TCCR0A = (0 << COM0A1) | (0 << COM0A0) |
@@ -87,7 +86,7 @@ int main(void)
   // Overflow Interrupt erlauben
   TIMSK0 |= (1<<TOIE0);
 
-  i2c_init();
+  //i2c_init();
 
   sei();
 	//wdt_enable(WDTO_1S);   // Watchdog auf 1 s stellen
@@ -108,13 +107,14 @@ int main(void)
 				}
 			}
 
+
 			if( i2c_idle() != 0 )
 			{
 				//wdt_reset();
 
 				// sleep ...
-				set_sleep_mode(SLEEP_MODE_IDLE);
-		    sleep_mode();
+				//set_sleep_mode(SLEEP_MODE_IDLE);
+				//sleep_mode();
 			}
     }
 

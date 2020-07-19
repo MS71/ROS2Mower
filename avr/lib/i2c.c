@@ -258,7 +258,7 @@ ISR( USI_START_VECTOR )
        ( PIN_USI & ( 1 << PIN_USI_SCL ) ) &&
        // and SDA is low
        !( ( PIN_USI & ( 1 << PIN_USI_SDA ) ) )
-  );
+  )
 
   if ( !( PIN_USI & ( 1 << PIN_USI_SDA ) ) )
   {
@@ -432,8 +432,8 @@ void i2c_init() {
 
 uint8_t i2c_idle()
 {
-  return (((PIN_USI & ( 1 << PORT_USI_SCL ))!=0)&&((PIN_USI & ( 1 << PORT_USI_SDA ))!=0))?1:0;
-  //return (overflowState == USI_SLAVE_CHECK_ADDRESS)?1:0;
+  //return (((PIN_USI & ( 1 << PORT_USI_SCL ))!=0)&&((PIN_USI & ( 1 << PORT_USI_SDA ))!=0))?1:0;
+  return (overflowState == USI_SLAVE_CHECK_ADDRESS)?1:0;
 }
 
 /********************************************************************************

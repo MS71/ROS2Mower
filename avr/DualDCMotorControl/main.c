@@ -923,10 +923,18 @@ int main(void)
 			}
 			
 			//sleep ...
-            DEBUG_INT(10,1);
-			set_sleep_mode(SLEEP_MODE_IDLE);
-			sleep_mode();
-            DEBUG_INT(10,0);
+			if( i2c_idle() != 0 )
+			{
+				DEBUG_INT(10,1);
+				set_sleep_mode(SLEEP_MODE_IDLE);
+				sleep_mode();
+				DEBUG_INT(10,0);
+			}
+			else
+			{
+				DEBUG_INT(14,1);
+				DEBUG_INT(14,0);				
+			}
     }
 
     return 0;  // the program executed successfully

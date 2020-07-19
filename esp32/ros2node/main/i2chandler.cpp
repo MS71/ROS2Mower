@@ -810,7 +810,40 @@ static void i2c_task(void* param)
     while(1) {
         bool keepon = false;
 
-        esp_pm_lock_acquire(pmlock);
+        //esp_pm_lock_acquire(pmlock);
+		
+#if 1
+		int errcnt_0x0a = 0;
+		int okcnt_0x0a = 0;
+		int errcnt_0x09 = 0;
+		int okcnt_0x09 = 0;
+		while(1)
+		{
+			uint8_t buf[8] = {};
+#if 1			
+			if(i2cnode_read(0x0a,0x00,buf,sizeof(buf))==ESP_OK)
+			{
+				//ESP_LOGW(TAG, "I2CThread() I2C Ok errcnt=%d", ++errcnt);
+				okcnt_0x0a++;
+			}
+			else
+			{
+				ESP_LOGE(TAG, "0x0a I2C Error okcnt=%d errcnt=%d", okcnt_0x0a, ++errcnt_0x0a);
+			}
+#endif
+#if 0			
+			if(i2cnode_read(0x09,0x00,buf,sizeof(buf))==ESP_OK)
+			{
+				//ESP_LOGW(TAG, "I2CThread() I2C Ok errcnt=%d", ++errcnt);
+				okcnt_0x09++;
+			}
+			else
+			{
+				ESP_LOGE(TAG, "0x09 I2C Error okcnt=%d errcnt=%d", okcnt_0x09, ++errcnt_0x09);
+			}
+#endif			
+		}
+#endif		
 
         try {
             
@@ -1158,7 +1191,7 @@ void i2c_handler_init()
     Config.scl_io_num = (gpio_num_t)I2C_BUS_SCL;
     // Config.scl_io_num = (gpio_num_t)12;
     Config.scl_pullup_en = GPIO_PULLUP_ENABLE;
-    Config.master.clk_speed = 50000;
+    Config.master.clk_speed = 400000;
     i2c_param_config((i2c_port_t)I2C_BUS_PORT, &Config);
     i2c_driver_install((i2c_port_t)I2C_BUS_PORT, Config.mode, 0, 0, 0);
     //		i2c_set_timeout((i2c_port_t)I2C_BUS_PORT, (I2C_APB_CLK_FREQ / Config.master.clk_speed)*1024);

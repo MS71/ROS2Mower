@@ -1,3 +1,4 @@
+#if 0
 /*
  * This file is part of the OpenMV project.
  * Copyright (c) 2013/2014 Ibrahim Abdelkader <i.abdalkader@gmail.com>
@@ -741,3 +742,4 @@ int ov2640_init(sensor_t *sensor)
 
     return 0;
 }
+#endif

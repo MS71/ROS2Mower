@@ -80,11 +80,6 @@ extern "C" {
 #define SPIHOST_PIN_NUM_CLK  (gpio_num_t)18
 #define SPIHOST_PIN_NUM_CS   (gpio_num_t)5
 
-static void handle_grayscale_pgm(http_context_t http_ctx, void* ctx);
-static void handle_rgb_bmp(http_context_t http_ctx, void* ctx);
-static void handle_rgb_bmp_stream(http_context_t http_ctx, void* ctx);
-static void handle_jpg(http_context_t http_ctx, void* ctx);
-static void handle_jpg_stream(http_context_t http_ctx, void* ctx);
 static esp_err_t event_handler(void* ctx, system_event_t* event);
 static void initialise_wifi(void);
 
@@ -92,10 +87,14 @@ static char my_wifi_ssid[64] = {};
 static char my_wifi_psk[64] = {};
 static bool my_wifi_save_on_connected = false;
 
+#ifdef CONFIG_ENABLE_SDCARD
 sdmmc_card_t* card = NULL;
 bool sdcard_ready = true;
+#endif
 
+#ifdef CONFIG_ENABLE_CAMERA
 bool camera_ready = true;
+#endif
 
 static const char* TAG = "MAIN";
 
@@ -105,7 +104,9 @@ const int CONNECTED_BIT = BIT0;
 ip4_addr_t s_ip_addr = {};
 uint8_t s_ip_addr_changed = 1;
 
+#ifdef CONFIG_ENABLE_ROS2
 int ros2_sock = -1;
+#endif
 
 /**
  * @brief 
@@ -118,6 +119,7 @@ static void ota_server_task(void* param)
     vTaskDelete(NULL);
 }
 
+#ifdef CONFIG_ENABLE_SDCARD
 // This example can use SDMMC and SPI peripherals to communicate with SD card.
 // By default, SDMMC peripheral is used.
 // To enable SPI mode, uncomment the following line:
@@ -171,7 +173,7 @@ static void sd_test_task(void* param)
 					int64_t t = esp_timer_get_time();
 					i += fwrite(sd_test_buf, 1, sd_test_buf_size, f);
 					if((esp_timer_get_time() - t) != 0) {
-					ESP_LOGW(TAG, "File (%s) written %dMByte %dkB/s", 
+					ESP_LOGI(TAG, "File (%s) written %dMByte %dkB/s", 
 						fn,
 						(int)(sd_test_buf_size / (1024 * 1024)),
 						(int)((1000 * i) / (esp_timer_get_time() - t)));
@@ -190,7 +192,7 @@ static void sd_test_task(void* param)
 						i += fread(sd_test_buf, 1, sd_test_buf_size, f);
 					}
 					if((esp_timer_get_time() - t) != 0) {
-						ESP_LOGW(TAG, "File (%s) read %dkB/s", 
+						ESP_LOGI(TAG, "File (%s) read %dkB/s", 
 							fn,
 							(int)((1000 * i) / (esp_timer_get_time() - t)));
 					}
@@ -274,7 +276,9 @@ void sdmmc_init()
 	sdcard_ready = false;
     }
 }
+#endif
 
+#ifdef CONFIG_ENABLE_SPI
 spi_device_handle_t spi;
 
 spi_bus_config_t buscfg = {};
@@ -358,9 +362,11 @@ static void spihost_test_task(void* param)
 
 			free(test_buf);
 		}		
+        vTaskDelay(10 / portTICK_PERIOD_MS);
 	}
     vTaskDelete(NULL);
 }
+#endif
 
 void check_wifi_config()
 {
@@ -460,7 +466,20 @@ void app_main(void)
     xTaskCreate(&ota_server_task, "ota_server_task", 4096, NULL, 5, NULL);
 
     // my_deflog = esp_log_set_vprintf(my_log);
-    ESP_LOGW(TAG, "ready");
+    //ESP_LOGW(TAG, "ready");
+
+#ifdef CONFIG_ENABLE_SDCARD
+    sdmmc_init();
+    xTaskCreate(&sd_test_task, "sd_test_task", 4096, NULL, 5, NULL);
+    //while(1) vTaskDelay(1000 / portTICK_PERIOD_MS);
+#endif
+
+#ifdef CONFIG_ENABLE_SPI
+    spihost_init();
+    xTaskCreate(&spihost_test_task, "spihost_test_task", 4096, NULL, 5, NULL);
+#endif
+
+    vTaskDelay(3000 / portTICK_PERIOD_MS);
 
 #ifdef CONFIG_ENABLE_ROS2
     {
@@ -500,16 +519,13 @@ void app_main(void)
 
     i2c_handler_init();
 
-    sdmmc_init();
-    xTaskCreate(&sd_test_task, "sd_test_task", 4096, NULL, 5, NULL);
-    //while(1) vTaskDelay(1000 / portTICK_PERIOD_MS);
-
-    spihost_init();
-    xTaskCreate(&spihost_test_task, "spihost_test_task", 4096, NULL, 5, NULL);
-
+#ifdef CONFIG_ENABLE_GPS
     gps_init();
+#endif
 
+#ifdef CONFIG_ENABLE_CAMERA
     camera_init();
+#endif
 
     // my_deflog = esp_log_set_vprintf(my_i2clog);
 

@@ -253,23 +253,33 @@ static void con_handle()
             }
             else if(strstr(rx_buffer,"i2cget")==rx_buffer)
             {
-                /* i2cget i2caddr regaddr numbytes
+                /* i2cget i2caddr regaddr numbytes repeats
+				 * i2cget 0x0a 0x00 32 10000000
                  */
+				 int errcnt = 0;
                 int p1 = 0;
                 int p2 = 0;
                 int p3 = 0;
-                int n = sscanf(rx_buffer,"i2cget 0x%02x 0x%02x %d",&p1,&p2,&p3);
-                if( n == 3 && p3 <= sizeof(rx_buffer) )
+                int p4 = 0;
+                if( ((sscanf(rx_buffer,"i2cget 0x%02x 0x%02x %d %d",&p1,&p2,&p3,&p4) == 4)||
+					 (sscanf(rx_buffer,"i2cget 0x%02x 0x%02x %d",&p1,&p2,&p3) == 3)) )
                 {
-                    con_printf("i2cget 0x%02x 0x%02x [%d]=",p1,p2,p3);
-                    if(i2cnode_read(p1,p2,(uint8_t*)rx_buffer,p3)==ESP_OK)
-                    {
-                        for(int i=0;i<p3;i++)
-                        {
-                            con_printf("%02x",rx_buffer[i]);
-                        }
-                    }
-                    con_printf("\n");
+					for( int k=0; k<=p4; k++ )
+					{
+						con_printf("i2cget 0x%02x 0x%02x [%d]=",p1,p2,p3);
+						if(i2cnode_read(p1,p2,(uint8_t*)rx_buffer,p3)==ESP_OK)
+						{
+							for(int i=0;i<p3;i++)
+							{
+								con_printf("%02x",rx_buffer[i]);
+							}
+						}
+						else
+						{
+							con_printf("... ERROR %d",++errcnt);
+						}
+						con_printf(" errcnt=%d\n",errcnt);
+					}
                 }
             }
             else if(strstr(rx_buffer,"i2cset")==rx_buffer)
@@ -279,10 +289,17 @@ static void con_handle()
                 int p1 = 0;
                 int p2 = 0;
                 char p3[RX_BUFFER_SIZE+1] = {};
-                int n = sscanf(rx_buffer,"i2cset 0x%02x 0x%02x %s",&p1,&p2,p3);
-                if( n == 3 && strlen(p3) <= RX_BUFFER_SIZE )
+                int p4 = 0;
+                if( ((sscanf(rx_buffer,"i2cset 0x%02x 0x%02x %s",&p1,&p2,p3) == 3) || 
+				     (sscanf(rx_buffer,"i2cset 0x%02x 0x%02x %s %d",&p1,&p2,p3,&p4) == 4)) &&
+					strlen(p3) <= RX_BUFFER_SIZE )
                 {
-                    con_printf("i2cset 0x%02x 0x%02x %s ",p1,p2,p3);
+					if( p4 == 0 )
+					{
+						p4 = 1;
+					}
+                    con_printf("i2cset 0x%02x 0x%02x %s %d",p1,p2,p3,p4);
+					
                     for(int i=0;i<(strlen(p3)/2);i++)
                     {
                         char tmp[10]="0x00";

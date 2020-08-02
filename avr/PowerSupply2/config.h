@@ -14,7 +14,6 @@
  * 5,6: UOut
  * 7,8: UBat
  */
-#define TWI_ADDR    9
 #define TWI_MEMSIZE 256
 
 #define DEF_SHUTDOWNDELAY     60       // shutdown after X seconds
@@ -50,7 +49,7 @@
 
 #define PIN_ON            8
 #define PIN_FON          10
-#define PIN_IN_PMSW      A7
+#define PIN_IN_PMSW       7
 
 #define LP_N             100
 

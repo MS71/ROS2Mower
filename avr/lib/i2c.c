@@ -243,7 +243,7 @@ ISR( USI_START_VECTOR )
   //unsigned char tmpUSISR;                                         // Temporary variable to store volatile
   //tmpUSISR = USISR;                                               // Not necessary, but prevents warnings
   //(void)tmpUSISR;
-
+    
   // set SDA as input
   PORT_USI |= ( 1 << PORT_USI_SDA );  // Set SDA high
   DDR_USI &= ~( 1 << PORT_USI_SDA );
@@ -258,7 +258,7 @@ ISR( USI_START_VECTOR )
        ( PIN_USI & ( 1 << PIN_USI_SCL ) ) &&
        // and SDA is low
        !( ( PIN_USI & ( 1 << PIN_USI_SDA ) ) )
-  )
+  );
 
   if ( !( PIN_USI & ( 1 << PIN_USI_SDA ) ) )
   {

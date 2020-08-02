@@ -14,8 +14,8 @@
 
 DEVICE     = attiny84
 CLOCK      = 8000000
-#PROGRAMMER = -c usbtiny
-PROGRAMMER = -c stk500 -P /dev/ttyACM0
+PROGRAMMER = -c usbtiny
+#PROGRAMMER = -c stk500 -P /dev/ttyACM0
 OBJECTS    = main.o i2c.o
 
 TWI_ADDR   = 12

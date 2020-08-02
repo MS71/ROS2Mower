@@ -23,7 +23,7 @@ config ENABLE_I2C
 
 if ENABLE_I2C
     config ENABLE_I2C_POWER
-        bool "Enable I2C Motor"
+        bool "Enable I2C Power"
         default y
     config ENABLE_I2C_MOTOR
         bool "Enable I2C Motor"

@@ -493,12 +493,12 @@ void app_main(void)
 	    nvs_get_i32(my_handle, "port", &host_port);
 	    nvs_close(my_handle);
 	    if(strlen(host_name) != 0 && host_port != 0) {
-		ros2::init(ros2_sock, host_name, host_port);
+            ros2::init(ros2_sock, host_name, host_port);
 	    } else {
-		// ros2::init(ros2_sock, "", 0);
+            // ros2::init(ros2_sock, "", 0);
 	    }
 	} else {
-	    // ros2::init(ros2_sock, "", 0);
+            // ros2::init(ros2_sock, "", 0);
 	}
     }
 #endif

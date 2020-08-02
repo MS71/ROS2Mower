@@ -1,6 +1,6 @@
 //#define LOG_LOCAL_LEVEL ESP_LOG_INFO
-#undef ENABLE_OLED
-#undef ENABLE_BNO055
+//#undef ENABLE_OLED
+//#undef CONFIG_ENABLE_I2C_BNO055
 
 #include <exception>
 #include <math.h>
@@ -37,7 +37,7 @@
 
 #include "console.h"
 
-#ifdef ENABLE_BNO055
+#ifdef CONFIG_ENABLE_I2C_BNO055
 #include "BNO055ESP32.h"
 #endif
 
@@ -72,7 +72,7 @@ static struct {
     
 } i2c_md = {};
 
-#ifdef ENABLE_BNO055
+#ifdef CONFIG_ENABLE_I2C_BNO055
 BNO055* bno055 = NULL;
 bno055_calibration_t bno055_calib;
 bool bno055_configured = false;
@@ -706,8 +706,7 @@ bool ros2ready(ros2::Node* ros2node)
             pub_motor_r_pid_pv = ros2node->createPublisher<std_msgs::Int16>(ROS2_NODENAME "/motor_r_pid_pv");
             pub_odom = ros2node->createPublisher<nav_msgs::Odometry>(ROS2_NODENAME "/odom_raw");
             pub_imu = ros2node->createPublisher<sensor_msgs::Imu>(ROS2_NODENAME "/imu");
-            sub_cmdvel =
-                ros2node->createSubscriber<geometry_msgs::Twist>("cmd_vel", (ros2::CallbackFunc)cmd_vel_callback, NULL);
+            sub_cmdvel = ros2node->createSubscriber<geometry_msgs::Twist>("cmd_vel", (ros2::CallbackFunc)cmd_vel_callback, NULL);
         }
         return true;
     } else {
@@ -750,15 +749,16 @@ void i2cnode_init_motor()
 static void i2c_task(void* param)
 {
     esp_pm_lock_handle_t pmlock;
-#ifdef CONFIG_ENABLE_ROS2
-    static ros2::Node ros2node(ROS2_NODENAME);
-#endif
-
     esp_pm_lock_create(ESP_PM_NO_LIGHT_SLEEP, 0, "i2clock", &pmlock);
     esp_pm_lock_acquire(pmlock);
 
+#ifdef CONFIG_ENABLE_ROS2
+    ESP_LOGW(TAG, "I2CThread() init ROS node ...");
+    static ros2::Node ros2node(ROS2_NODENAME);
+    ESP_LOGW(TAG, "I2CThread() init ROS node ... done");
+#endif
+
 #ifdef CONFIG_ENABLE_I2C_OLED
-    uint8_t oled_update = 0;
     SSD1306_Init_I2C(&I2CDisplay, 128, 64, OLED_I2C_ADDR >> 1, -1, 
         I2CDefaultWriteCommand, I2CDefaultWriteData, I2CDefaultReset);
     SSD1306_DisplayOn(&I2CDisplay);
@@ -767,9 +767,45 @@ static void i2c_task(void* param)
     SSD1306_SetFont(&I2CDisplay, &Font_droid_sans_mono_16x31);
     SSD1306_FontDrawString(&I2CDisplay, (128-8*16)/2, (64-31)/2, "Init ...", SSD_COLOR_WHITE);
     SSD1306_Update(&I2CDisplay);
+    int64_t next_oled_update = esp_timer_get_time() + 1000000UL;
 #endif // CONFIG_ENABLE_I2C_OLED
+
+    //vTaskDelay(3000 / portTICK_PERIOD_MS);
+
+#if 0
+		int errcnt_0x0a = 0;
+		int okcnt_0x0a = 0;
+		int errcnt_0x09 = 0;
+		int okcnt_0x09 = 0;
+		while(1)
+		{
+			uint8_t buf[8] = {};
+#if 0			
+			if(i2cnode_read(0x0a,0x00,buf,sizeof(buf))==ESP_OK)
+			{
+				//ESP_LOGW(TAG, "I2CThread() I2C Ok errcnt=%d", ++errcnt_0x0a);
+				okcnt_0x0a++;
+			}
+			else
+			{
+				ESP_LOGE(TAG, "0x0a I2C Error okcnt=%d errcnt=%d", okcnt_0x0a, ++errcnt_0x0a);
+			}
+#endif
+#if 1
+			if(i2cnode_read(0x09,0x00,buf,sizeof(buf))==ESP_OK)
+			{
+				//ESP_LOGW(TAG, "I2CThread() I2C Ok errcnt=%d", ++errcnt_0x09);
+				okcnt_0x09++;
+			}
+			else
+			{
+				ESP_LOGE(TAG, "0x09 I2C Error okcnt=%d errcnt=%d", okcnt_0x09, ++errcnt_0x09);
+			}
+#endif			
+		}
+#endif		
 	
-#ifdef ENABLE_BNO055
+#ifdef CONFIG_ENABLE_I2C_BNO055
     bno055 = new BNO055((i2c_port_t)I2C_BUS_PORT, 0x28);
     if(bno055 != NULL) {
         try {
@@ -807,52 +843,12 @@ static void i2c_task(void* param)
 
     i2cnode_init_motor();
 
-while(1)
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
-
-#ifdef CONFIG_ENABLE_I2C_OLED
-    SSD1306_Clear(&I2CDisplay, SSD_COLOR_BLACK);
-    SSD1306_Update(&I2CDisplay);
-#endif // CONFIG_ENABLE_I2C_OLED
-
     esp_pm_lock_release(pmlock);
+    
     while(1) {
         bool keepon = false;
 
-        //esp_pm_lock_acquire(pmlock);
-		
-#if 1
-		int errcnt_0x0a = 0;
-		int okcnt_0x0a = 0;
-		int errcnt_0x09 = 0;
-		int okcnt_0x09 = 0;
-		while(1)
-		{
-			uint8_t buf[8] = {};
-#if 1			
-			if(i2cnode_read(0x0a,0x00,buf,sizeof(buf))==ESP_OK)
-			{
-				//ESP_LOGW(TAG, "I2CThread() I2C Ok errcnt=%d", ++errcnt);
-				okcnt_0x0a++;
-			}
-			else
-			{
-				ESP_LOGE(TAG, "0x0a I2C Error okcnt=%d errcnt=%d", okcnt_0x0a, ++errcnt_0x0a);
-			}
-#endif
-#if 0			
-			if(i2cnode_read(0x09,0x00,buf,sizeof(buf))==ESP_OK)
-			{
-				//ESP_LOGW(TAG, "I2CThread() I2C Ok errcnt=%d", ++errcnt);
-				okcnt_0x09++;
-			}
-			else
-			{
-				ESP_LOGE(TAG, "0x09 I2C Error okcnt=%d errcnt=%d", okcnt_0x09, ++errcnt_0x09);
-			}
-#endif			
-		}
-#endif		
+        esp_pm_lock_acquire(pmlock);
 
         try {
     
@@ -875,9 +871,9 @@ while(1)
             ubat = (double)ubat_mV / 1000.0;
 #endif
 
-#ifdef ENABLE_OLED
-            char tmpstr[64];
-            if(oled_update-- == 0) {
+#ifdef CONFIG_ENABLE_I2C_OLED
+            if(next_oled_update < esp_timer_get_time()) {
+                char tmpstr[64];
                 int y = 0;
                 int s = 5;
                 SSD1306_Clear(&I2CDisplay, SSD_COLOR_BLACK);
@@ -906,10 +902,9 @@ while(1)
                 y += (s + 13);
 
                 SSD1306_Update(&I2CDisplay);
-
-                oled_update = 10;
+                next_oled_update = esp_timer_get_time() + 1000000UL;
             }
-#endif
+#endif /* CONFIG_ENABLE_I2C_OLED */
             
             wifi_ap_record_t wifi_info = {};
             esp_wifi_sta_get_ap_info(&wifi_info);
@@ -949,7 +944,7 @@ while(1)
 #endif
 
 #ifdef CONFIG_ENABLE_ROS2
-        vHandleEncoderSteps(&ros2node, motor_l_rel_enc, motor_r_rel_enc);
+        //vHandleEncoderSteps(&ros2node, motor_l_rel_enc, motor_r_rel_enc);
 
             if(ros2ready(&ros2node)) {
 
@@ -1005,9 +1000,10 @@ while(1)
                 }
             }
             ros2::spin(&ros2node);
-#endif
+#endif /* CONFIG_ENABLE_ROS2 */
 
-#ifdef ENABLE_BNO055
+#ifdef CONFIG_ENABLE_I2C_BNO055
+
             if(bno055 != NULL) {
                 try {
                     if(/*nh.connected() && published==true &&*/ bno055_configured == false) {
@@ -1072,7 +1068,11 @@ while(1)
                         }
                     }
 
-                    if(ros2ready(&ros2node) && bno055_configured == true) {
+                    if( bno055_configured == true 
+#ifdef CONFIG_ENABLE_ROS2
+                        && ros2ready(&ros2node) 
+#endif
+                        ) {
                         static int64_t imu_last_time = 0;
                         int64_t current_time = esp_timer_get_time();
                         double dt = 0.000001 * (current_time - imu_last_time); /* s */
@@ -1087,8 +1087,7 @@ while(1)
 
                             //ESP_LOGW(TAG, "BNO055 %d",temperature);
 
-                            static sensor_msgs::Imu imu_msg;
-#if 1
+                            sensor_msgs::Imu imu_msg;
                             strcpy(imu_msg.header.frame_id,"imu_link");
                             imu_msg.header.stamp = ros2::now();
                             //imu_msg.header.seq = imu_msg.header.seq + 1;
@@ -1122,9 +1121,11 @@ while(1)
                             imu_msg.linear_acceleration.x = vector_linaccl.y /* / 100.0*/;
                             imu_msg.linear_acceleration.y = -vector_linaccl.x /* / 100.0*/;
                             imu_msg.linear_acceleration.z = vector_linaccl.z /* / 100.0*/;
-
-                            pub_imu->publish(&imu_msg);
-#endif                            
+#ifdef CONFIG_ENABLE_ROS2
+                            if(ros2ready(&ros2node)) {
+                                pub_imu->publish(&imu_msg);
+                            }
+#endif
                         }
                     }
                 } catch(BNO055BaseException ex) {

@@ -12,17 +12,21 @@
 #                is connected.
 # FUSES ........ Parameters for avrdude to flash the fuses appropriately.
 
+TWI_ADDR   = 9
+#DEBUGUART  = y
+
 DEVICE     = attiny84
 CLOCK      = 8000000
 PROGRAMMER = -c usbtiny
 #PROGRAMMER = -c stk500 -P /dev/ttyACM0
-OBJECTS    = main.o i2c.o
-
-TWI_ADDR   = 12
+OBJECTS    = main.o ../lib/i2c.o
+ifdef DEBUGUART
+CFLAGS += -DDEBUGUART
+endif
 
 #http://www.engbedded.com/fusecalc/
-FUSES      = -U lfuse:w:0xe2:m -U hfuse:w:0xdd:m -U efuse:w:0xfe:m
-
+#FUSES      = -U lfuse:w:0xd2:m -U hfuse:w:0xde:m -U efuse:w:0xfe:m
+FUSES      = -U lfuse:w:0xd2:m -U hfuse:w:0x9e:m -U efuse:w:0xfe:m
 
 ######################################################################
 ######################################################################
@@ -30,7 +34,7 @@ FUSES      = -U lfuse:w:0xe2:m -U hfuse:w:0xdd:m -U efuse:w:0xfe:m
 # Tune the lines below only if you know what you are doing:
 
 AVRDUDE = avrdude $(PROGRAMMER) -p $(DEVICE)
-COMPILE = avr-gcc -Wall -Os -DTWI_ADDR=$(TWI_ADDR) -DF_CPU=$(CLOCK) -mmcu=$(DEVICE)
+COMPILE = avr-gcc -Wall -Os ${CFLAGS} -DTWI_ADDR=$(TWI_ADDR) -DF_CPU=$(CLOCK) -mmcu=$(DEVICE) -I../lib
 
 # symbolic targets:
 all:	main.hex
@@ -49,6 +53,9 @@ all:	main.hex
 	$(COMPILE) -S $< -o $@
 
 flash:	all
+	$(AVRDUDE) -U flash:w:main.hex:i
+
+flash_only:
 	$(AVRDUDE) -U flash:w:main.hex:i
 
 fuse:

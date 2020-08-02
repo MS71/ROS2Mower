@@ -1,3 +1,5 @@
+#define LOG_LOCAL_LEVEL ESP_LOG_VERBOSE
+
 #include <exception>
 #include <math.h>
 #include <stdio.h>
@@ -88,39 +90,56 @@ static void tcp_server_task(void* pvParameters)
 	    }
 	    ESP_LOGI(TAG, "Socket accepted");
 
-	    struct timeval tv;
-	    tv.tv_sec = 0;
-	    tv.tv_usec = 1000;
-	    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+#if 0
+        char initstr[] = 
+            "!UBX CFG-GNSS 0 32 32 1 0 10 32 0 1\n"
+            "!UBX CFG-GNSS 0 32 32 1 6 8 16 0 1\n"
+            "!UBX CFG-MSG 3 15 0 1 0 1 0 0\n"
+            "!UBX CFG-MSG 3 16 0 1 0 1 0 0\n"
+            "!UBX CFG-MSG 1 32 0 1 0 1 0 0\n";
+        uart_write_bytes(UART_NUM_1, initstr, sizeof(initstr));
 
+	    ESP_LOGI(TAG, "Socket accepted");
+#endif
 	    while(1) {
-		int len;
-		len = recv(sock, rx_buffer, sizeof(rx_buffer), 0);
-		if(len > 0) {
-		    // printf("TX:%d\n", len);
-		    uart_write_bytes(UART_NUM_1, (const char*)rx_buffer, len);
-		} else if(len == 0) {
-		    ESP_LOGI(TAG, "Connection closed");
-		    break;
-		}
 
-		// Read data from the UART
-		len = uart_read_bytes(UART_NUM_1, rx_buffer, sizeof(rx_buffer), 1 / portTICK_RATE_MS);
-		// printf("RX:%d\n",len);
-		// Write data back to the UART
-		if(len > 0) {
-		    int err = send(sock, rx_buffer, len, 0);
-		    if(err < 0) {
-			ESP_LOGE(TAG, "Error occured during sending: errno %d", errno);
-			break;
-		    }
-		}
+            int len;
+            len = recv(sock, rx_buffer, sizeof(rx_buffer), MSG_DONTWAIT);
+
+            if( len == EWOULDBLOCK )
+            {
+                vTaskDelay(1 / portTICK_PERIOD_MS);
+            }
+
+            if(len > 0) {
+                rx_buffer[len] = 0;
+                ESP_LOGW(TAG, "TX[%d]:%s", len,rx_buffer);
+                uart_write_bytes(UART_NUM_1, (const char*)rx_buffer, len);
+            } else if(len == 0) {
+                ESP_LOGW(TAG, "Connection closed");
+                break;
+            }
+
+            // Read data from the UART
+            len = uart_read_bytes(UART_NUM_1, rx_buffer, sizeof(rx_buffer), 1 / portTICK_RATE_MS);
+            len = 0;
+            // printf("RX:%d\n",len);
+            // Write data back to the UART
+            if(len > 0) {
+                rx_buffer[len] = 0;
+                //ESP_LOGW(TAG, "RX[%d]:%s", len,rx_buffer);
+                int err = send(sock, rx_buffer, len, 0);
+                if(err < 0) {
+                ESP_LOGE(TAG, "Error occured during sending: errno %d", errno);
+                break;
+                }
+            }
 	    }
 
 	    if(sock != -1) {
-		ESP_LOGE(TAG, "Shutting down socket and restarting...");
-		shutdown(sock, 0);
-		close(sock);
+            ESP_LOGE(TAG, "Shutting down socket and restarting...");
+            shutdown(sock, 0);
+            close(sock);
 	    }
 	}
     }

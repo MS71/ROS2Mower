@@ -16,8 +16,13 @@
 
 #include "i2c.h"
 
-#define PIN_ENCA	PA1
-#define PIN_ENCB	PA0
+
+#define MOTOR_GEAR_N (18*7*23UL)
+#define MOTOR_RPS(_rps_) (int32_t)(((int32_t)_rps_) * MOTOR_GEAR_N)
+#define MOTOR_RPM(_rpm_) (int32_t)(MOTOR_RPS(_rpm_) / 60.0)
+
+#define PIN_ENCA	PA0
+#define PIN_ENCB	PA1
 #define PIN_INA1	PA2
 #define PIN_INA2	PA3
 #define PIN_INB1	PB1
@@ -35,14 +40,14 @@
       PORTA = (PORTA & ~(1<<PIN_INT)) | ((((_v_)>>0)&1)<<PIN_INT); \
 	}
 
-#define MODE_B(_m_) \
+#define MODE_A(_m_) \
     { \
 	  DDRA |= (1<<PIN_INA1) | (1<<PIN_INA2); \
 	  PORTA = (PORTA & ~(1<<PIN_INA1)) | ((((_m_)>>0)&1)<<PIN_INA1); \
 	  PORTA = (PORTA & ~(1<<PIN_INA2)) | ((((_m_)>>1)&1)<<PIN_INA2); \
 	}
 
-#define MODE_A(_m_) \
+#define MODE_B(_m_) \
     { \
 	  DDRB |= (1<<PIN_INB1) | (1<<PIN_INB2); \
 	  PORTB = (PORTB & ~(1<<PIN_INB1)) | ((((_m_)>>0)&1)<<PIN_INB1); \
@@ -96,6 +101,7 @@ enum {
 		MODE_TEST_01_PWM=5,
 } motor_mode = MODE_OFF;
 
+#if 0
 #define MOTOR_TEST_01_STEPS 8
 struct
 {
@@ -103,6 +109,7 @@ struct
 	int16_t  speed_B;
 	uint16_t delay_ms;
 } motor_test_01[MOTOR_TEST_01_STEPS] = {};
+#endif
 
 volatile uint64_t u32_time_us = 0;
 
@@ -177,12 +184,16 @@ ISR (TIM1_OVF_vect)
     if( motor_A.u16_t1_cnt < 0xffff ) motor_A.u16_t1_cnt++;
     if( (motor_A.u16_t1_cnt&63)==0 ) /* > 512ms */
     {
+      DEBUG_INT(14,1);
+      DEBUG_INT(14,0);
       motor_A.u32_encperiod = (((uint32_t)motor_A.u32_encperiod*(motor_stop_tp-1)) + 1000000UL)/motor_stop_tp;
     }
 
     if( motor_B.u16_t1_cnt < 0xffff ) motor_B.u16_t1_cnt++;
     if( (motor_B.u16_t1_cnt&63)==0 ) /* > 512ms */
     {
+      DEBUG_INT(15,1);
+      DEBUG_INT(15,0);
       motor_B.u32_encperiod = (((uint32_t)motor_B.u32_encperiod*(motor_stop_tp-1)) + 1000000UL)/motor_stop_tp;
     }
     
@@ -206,7 +217,7 @@ ISR (TIM1_OVF_vect)
 	u8Tick = 1;
     DEBUG_INT(13,0);
   }
-  DEBUG_INT(4,1);
+  DEBUG_INT(4,0);
 }
 
 /********************************************************************************
@@ -257,13 +268,13 @@ ISR(PCINT0_vect)
 
 	if( flaga != 0 )
 	{
-        uint32_t p = (((uint32_t)(motor_A.u16_t1_cnt+_t1ov)<<16) - motor_A.u16_t1_tcnt1 + tcnt1)/8;
+        uint32_t p = (((uint32_t)(motor_A.u16_t1_cnt+_t1ov)<<16) + (uint32_t)tcnt1 - (uint32_t)motor_A.u16_t1_tcnt1)/8;
         motor_A.u32_encperiod = (((uint32_t)motor_A.u32_encperiod*(motor_enc_tp-1)) + p)/motor_enc_tp;
         motor_A.u16_t1_cnt = 0;
         motor_A.u16_t1_tcnt1 = tcnt1;
         motor_A.i16_encoder += motor_A.i8_encoder_step;
         motor_A.i64_encoder += motor_A.i8_encoder_step;
-        motor_A.u8_encoder_flag = 1; 
+        motor_A.u8_encoder_flag = 1;
         DEBUG_INT(8,1);
         DEBUG_INT(8,0);
 	}
@@ -287,26 +298,30 @@ ISR(PCINT0_vect)
 static void setModeA(uint8_t mode,uint8_t pwm)
 {
 	  MODE_A(mode);
-	  OCR0A = pwm;
+	  OCR0B = pwm;
 }
 
 static void setModeB(uint8_t mode,uint8_t pwm)
 {
 	  MODE_B(mode);
-	  OCR0B = pwm;
+	  OCR0A = pwm;
 }
 
 void calcPID(Motor *m,void(*set_mode)(uint8_t mode,uint8_t pwm))
-{
+{    
   cli();
   int16_t sp = m->pid_setPoint;
   if( m->u32_encperiod > 0 )
   {
+    DEBUG_INT(16,1);
+    DEBUG_INT(16,0);
     m->pid_processValue = (1000000UL) / m->u32_encperiod;
     sei();
   }
   else
   {
+    DEBUG_INT(17,1);
+    DEBUG_INT(17,0);
     sei();
     return;
   }
@@ -315,8 +330,12 @@ void calcPID(Motor *m,void(*set_mode)(uint8_t mode,uint8_t pwm))
   {
     m->i8_encoder_step = 1;
 
+    DEBUG_INT(18,1);
+    DEBUG_INT(18,0);
+
     m->pid_Value = pid_Controller(sp, m->pid_processValue, &m->pid);
     m->pwm = ((((int32_t)m->pid_Value)*255)/SCALING_FACTOR);
+    
     if( m->pid_Value > 0 )
     {
       set_mode(2,m->pwm);
@@ -330,6 +349,9 @@ void calcPID(Motor *m,void(*set_mode)(uint8_t mode,uint8_t pwm))
   else if( m->pid_setPoint < 0 )
   {
      m->i8_encoder_step = -1;
+
+    DEBUG_INT(19,1);
+    DEBUG_INT(19,0);
 
      m->pid_Value = pid_Controller(-m->pid_setPoint, m->pid_processValue, &m->pid);
      m->pwm = ((((int32_t)m->pid_Value)*255)/SCALING_FACTOR);
@@ -345,6 +367,9 @@ void calcPID(Motor *m,void(*set_mode)(uint8_t mode,uint8_t pwm))
   }
   else
   {
+    DEBUG_INT(20,1);
+    DEBUG_INT(20,0);
+
     m->pwm = 0;
     set_mode(0,0);
   }
@@ -370,6 +395,7 @@ void handlePID()
 	}
 }
 
+#if 0
 /*
  * Motor Test 01
  */
@@ -434,13 +460,14 @@ void handle_motor_test_01()
 		}
 	}
 }
+#endif
 
 volatile uint8_t u8TWIReg = 0;
 volatile uint8_t u8TWITmp[16] = {};
 volatile uint8_t u8TWITmpIdx = 0;
 
 #define TWI_REG_U64_CLOCK_US	 ((0<<8)|8)
-#define TWI_REG_U16_MODE  	 ((8<<8)|2)
+#define TWI_REG_U16_MODE  	     ((8<<8)|2)
 #define TWI_REG_U16_AUTOBREAK    ((10<<8)|2)
 #define TWI_REG_U16_BOOTCOUNTER  ((12<<8)|2)
 #define TWI_REG_U8_MAINLOOPPULSE ((14<<8)|1)
@@ -789,11 +816,8 @@ int main(void)
 	PORTA |= (1<<PIN_ENCA);
 	PORTA |= (1<<PIN_ENCB);
 
-	PCMSK1 = 0;
-	PCMSK0 = 0;
-  	
-  PCMSK0 |= (1<<PCINT0);
-  PCMSK0 |= (1<<PCINT1);
+  PCMSK0 = 3;
+  PCMSK1 = 0;
   GIMSK  = (1<<PCIE0);
   GIFR |= (1<<PCIF0);
 
@@ -803,11 +827,20 @@ int main(void)
   OCR0A = 0;
   OCR0B = 0;
     
+#if 0
+  MODE_A(1);
+  MODE_B(1);    
+  PORTA |= (1<<PIN_PWMA);
+  PORTB |= (1<<PIN_PWMB);
+  while(1);
+#endif
+
   // fast PWM mode
   TCCR0A = (1 << COM0A1) | (0 << COM0A0) | (1 << COM0B1) | (0 << COM0B0) | (0 << WGM01) | (1 << WGM00);
   //TCCR0B = (0 << WGM02) | (1 << CS02) | (0 << CS01) | (0 << CS00);   // clock source = CLK/1, start PWM
   TCCR0B = (0 << WGM02) | (0 << CS02) | (0 << CS01) | (1 << CS00);   // clock source = CLK/1, start PWM
 
+  TCCR1A = 0;
   TCCR1B = (0 << CS12) | (0 << CS11) | (1 << CS10);   // clock source = CLK/8, start PWM
   TIMSK1 |= (1<<TOIE1);
 
@@ -863,22 +896,31 @@ int main(void)
 
 #if 0
 	motor_mode = MODE_PWM;
-	setModeA(2,0);
-	setModeB(2,30);
+	setModeA(2,160);
+	setModeB(0,160);
 #endif
 
 #if 0
 	motor_mode = MODE_PID;
-	motor_A.pid_setPoint = 100;
-	motor_B.pid_setPoint = 100;
+	motor_A.pid_setPoint = MOTOR_RPM(10);
+	motor_B.pid_setPoint = MOTOR_RPM(10);
 #endif
 
 	main_loop_int_pulse = 0;
 
+#if 0
+    while(1)
+    {
+				DDRA |= (1<<PIN_ENCB);
+                PORTA |= (1<<PIN_ENCB);
+                PORTA &= ~(1<<PIN_ENCB);
+    }
+#endif
+
 	wdt_enable(WDTO_2S);   // Watchdog auf 1 s stellen
 
     for(;;)
-    {
+    {            
 			if( u8HandlePIDFlag == 1 )
 			{
 				u8HandlePIDFlag = 0;
@@ -895,11 +937,13 @@ int main(void)
 				DEBUG_INT(7,0);
 			}
 
+#if 0
 			if( u8Tick == 1 )
 			{
 				u8Tick = 0;
 				handle_motor_test_01();
 			}
+#endif
 
 #ifdef DEBUGUART
 			{

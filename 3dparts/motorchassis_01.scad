@@ -5,6 +5,8 @@ show_motor_driver_B=0;
 show_bat_monitor=0;
 show_stabi=0;
 
+include <ISOThread.scad>
+
 $fn=100;
 b=244;
 t=169;
@@ -53,8 +55,9 @@ module save_fil() {
 
 module stabi() {
     /*translate([0,85,53]){*/
-    translate([0,t-t_achse,h_achse+d_achsen_schrauben_abstand/2]){
-        rotate([0,90,0]) linear_extrude(b/2) circle(d=d_achsen_schrauben);
+    translate([-1,t-t_achse,h_achse+d_achsen_schrauben_abstand/2]){
+        //rotate([0,90,0]) linear_extrude(b) circle(d=d_achsen_schrauben);
+        rotate([0,90,0]) thread_out(8.01,b+2);
     }
 }
 
@@ -226,7 +229,7 @@ module drive_motor_holder() {
     motor_driver_A();
     motor_driver_B();
     bat_monitor();   
-    stabi();  
+    //stabi();  
     save_fil();
     // kabelbinder für motor
     translate([a_motor-b2_motor+1*l1_motor/6+b2_motor,t-t_achse+d4_motor/2,d1+d5/2]) rotate([90,0,0]) linear_extrude(d4_motor) square([2*d5,d5],true);    
@@ -244,10 +247,19 @@ module drive_motor_holder() {
   if( show_motor_driver_A ) color([1,0,0]) motor_driver_A();      
   if( show_motor_driver_B ) color([1,0,0]) motor_driver_B();    
   if( show_bat_monitor ) color([1,0,0]) bat_monitor();          
-  if( show_stabi ) color([1,0,0]) stabi();                
+  //if( show_stabi ) color([1,0,0]) stabi();                
   //save_fil();
 }
 
-drive_motor_holder();
-if( show_mirror )translate([b,0,0]) mirror([1,0,0]) drive_motor_holder();
+difference() {
+    union() {
+        drive_motor_holder();
+        if( show_mirror )translate([b,0,0]) mirror([1,0,0]) drive_motor_holder();
+    }
+    union() {
+        stabi();                
+    }
+}
+
  
+if( show_stabi ) color([1,0,0]) stabi();                

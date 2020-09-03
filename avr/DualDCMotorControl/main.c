@@ -21,15 +21,75 @@
 #define MOTOR_RPS(_rps_) (int32_t)(((int32_t)_rps_) * MOTOR_GEAR_N)
 #define MOTOR_RPM(_rpm_) (int32_t)(MOTOR_RPS(_rpm_) / 60.0)
 
-#define PIN_ENCA	PA0
-#define PIN_ENCB	PA1
-#define PIN_INA1	PA2
-#define PIN_INA2	PA3
-#define PIN_INB1	PB1
-#define PIN_INB2	PB0
-#define PIN_PWMA	PA7
-#define PIN_PWMB	PB2
 #define PIN_INT  	PA5
+
+#ifdef VARIANT_A_T84_L298_SE
+#define BIT_ENCA	1
+#define PORT_ENCA	A
+#define BIT_ENCB	0
+#define PORT_ENCB	A
+
+#define BIT_MA_A	2
+#define PORT_MA_A   A
+#define BIT_MA_B	0
+#define PORT_MA_B	B
+#define BIT_MB_A	1
+#define PORT_MB_A	B
+#define BIT_MB_B	3
+#define PORT_MB_B	A
+#define BIT_PWMA	2
+#define PORT_PWMA	B
+#define BIT_PWMB	7
+#define PORT_PWMB	A
+#endif
+
+#ifdef VARIANT_D_T841_L298_SE
+#define BIT_ENCA	2
+#define PORT_ENCA	B
+#define BIT_ENCB	7
+#define PORT_ENCB	A
+#define BIT_MA_A	0
+#define PORT_MA_A   A
+#define BIT_MA_B	0
+#define PORT_MA_B	B
+#define BIT_MB_A	1
+#define PORT_MB_A	B
+#define BIT_MB_B	3
+#define PORT_MB_B	A
+#define BIT_PWMA	1
+#define PORT_PWMA	A
+#define BIT_PWMB	2
+#define PORT_PWMB	A
+#endif
+
+#ifdef VARIANT_D_T841_VNH2SP30_SE
+#define BIT_ENCA	2
+#define PORT_ENCA	B
+#define BIT_MA_A	0
+#define PORT_MA_A   A
+#define BIT_MA_B	0
+#define PORT_MA_B	B
+#define BIT_PWMA	1
+#define PORT_PWMA	A
+#endif
+
+#ifdef VARIANT_C_T84_VNH2SP30_SE
+#define BIT_ENCA	1
+#define PORT_ENCA	A
+
+#define BIT_MA_A	2
+#define PORT_MA_A   A
+#define BIT_MA_B	0
+#define PORT_MA_B	B
+#define BIT_MA_EN	1
+#define PORT_MA_EN  B
+#define BIT_PWMA	2
+#define PORT_PWMA	B
+#endif
+
+
+#define CONCATx(a,b) a##b
+#define REG(a,b) CONCATx(a,b)
 
 //#define DEBUG_INT(_ch_,_v_) if( main_loop_int_pulse == _ch_ ) INTOUT(_v_);
 #define DEBUG_INT(_ch_,_v_) 
@@ -40,24 +100,30 @@
       PORTA = (PORTA & ~(1<<PIN_INT)) | ((((_v_)>>0)&1)<<PIN_INT); \
 	}
 
+#if defined(PORT_MA_A) && defined(BIT_MA_B)
 #define MODE_A(_m_) \
     { \
-	  DDRA |= (1<<PIN_INA1) | (1<<PIN_INA2); \
-	  PORTA = (PORTA & ~(1<<PIN_INA1)) | ((((_m_)>>0)&1)<<PIN_INA1); \
-	  PORTA = (PORTA & ~(1<<PIN_INA2)) | ((((_m_)>>1)&1)<<PIN_INA2); \
+	  REG(DDR,PORT_MA_A) |= (1<<BIT_MA_A); \
+	  REG(DDR,PORT_MA_B) |= (1<<BIT_MA_B); \
+	  if((_m_>>0)&1) REG(PORT,PORT_MA_A) |= (1<<BIT_MA_A); else REG(PORT,PORT_MA_A) &= ~(1<<BIT_MA_A); \
+	  if((_m_>>1)&1) REG(PORT,PORT_MA_B) |= (1<<BIT_MA_B); else REG(PORT,PORT_MA_B) &= ~(1<<BIT_MA_B); \
 	}
+#endif
 
+#if defined(PORT_MB_A) && defined(BIT_MB_B)
 #define MODE_B(_m_) \
     { \
-	  DDRB |= (1<<PIN_INB1) | (1<<PIN_INB2); \
-	  PORTB = (PORTB & ~(1<<PIN_INB1)) | ((((_m_)>>0)&1)<<PIN_INB1); \
-	  PORTB = (PORTB & ~(1<<PIN_INB2)) | ((((_m_)>>1)&1)<<PIN_INB2); \
+	  REG(DDR,PORT_MB_A) |= (1<<BIT_MB_A); \
+	  REG(DDR,PORT_MB_B) |= (1<<BIT_MB_B); \
+	  if((_m_>>0)&1) REG(PORT,PORT_MB_A) |= (1<<BIT_MB_A); else REG(PORT,PORT_MB_A) &= ~(1<<BIT_MB_A); \
+	  if((_m_>>1)&1) REG(PORT,PORT_MB_B) |= (1<<BIT_MB_B); else REG(PORT,PORT_MB_B) &= ~(1<<BIT_MB_B); \
 	}
+#endif
 
 #define TOGGLE_PIN(_port_,_pin_) \
 	_port_ = (_port_&(~(1<<(_pin_)))) | ((~(_port_))&(1<<(_pin_)))
 
-int16_t k_p = (int16_t)((0.30)*SCALING_FACTOR);
+int16_t k_p = (int16_t)((0.20)*SCALING_FACTOR);
 int16_t k_i = (int16_t)((0.01)*SCALING_FACTOR);
 int16_t k_d = (int16_t)((0.01)*SCALING_FACTOR);
 
@@ -175,6 +241,7 @@ volatile uint8_t tim0_divcnt = 0;
 /*
  * timer0/1 overflow
  */
+#if defined( __AVR_ATtiny84__ )
 ISR (TIM1_OVF_vect)
 {
     DEBUG_INT(3,1);
@@ -219,6 +286,7 @@ ISR (TIM1_OVF_vect)
   }
   DEBUG_INT(4,0);
 }
+#endif
 
 /********************************************************************************
  Wheel Encoder
@@ -228,44 +296,46 @@ ISR(PCINT0_vect)
 {
     uint16_t tcnt1 = TCNT1;
     uint8_t _t1ov = (TOV1!=0)?1:0;
-	uint8_t flaga = 0;
-	uint8_t flagb = 0;
 
 	DEBUG_INT(5,1);
 
+#ifdef BIT_ENCA
+	uint8_t flaga = 0;
 	{
 		static uint8_t _enca = 0;
-		uint8_t enca = (PINA & (1<<PIN_ENCA));
+		uint8_t enca = (REG(PIN,PORT_ENCA) & (1<<BIT_ENCA));
 		if( enca != _enca )
 		{
 			_enca = enca;
 			if( enca == 0 )
 			{
 				flaga = 1;
+                DEBUG_INT(6,1);
 			}
 		}
 	}
+#endif
 
+#ifdef BIT_ENCB
+	uint8_t flagb = 0;
 	{
 		static uint8_t _encb = 0;
-		uint8_t encb = (PINA & (1<<PIN_ENCB));
+		uint8_t encb = (REG(PIN,PORT_ENCB) & (1<<BIT_ENCB));
 		if( encb != _encb )
 		{
 			_encb = encb;
 			if( encb == 0 )
 			{
 				flagb = 1;
+                DEBUG_INT(6,1);
 			}
 		}
 	}
-
-	if( flaga!=0 || flagb!=0 )
-	{
-		 DEBUG_INT(6,1);
-	}
+#endif
 
 	//sei();	// allow other IRQs e.g. i2c
 
+#ifdef BIT_ENCA
 	if( flaga != 0 )
 	{
         uint32_t p = (((uint32_t)(motor_A.u16_t1_cnt+_t1ov)<<16) + (uint32_t)tcnt1 - (uint32_t)motor_A.u16_t1_tcnt1)/8;
@@ -278,7 +348,9 @@ ISR(PCINT0_vect)
         DEBUG_INT(8,1);
         DEBUG_INT(8,0);
 	}
+#endif
 
+#ifdef BIT_ENCB
 	if( flagb != 0 )
 	{
         uint32_t p = (((uint32_t)(motor_B.u16_t1_cnt+_t1ov)<<16) + (uint32_t)tcnt1 - (uint32_t)motor_B.u16_t1_tcnt1)/8;
@@ -291,21 +363,27 @@ ISR(PCINT0_vect)
         DEBUG_INT(9,1);
         DEBUG_INT(9,0);
 	}
+#endif
+
 	DEBUG_INT(5,0);
 	DEBUG_INT(6,0);
 }
 
+#ifdef MODE_A
 static void setModeA(uint8_t mode,uint8_t pwm)
 {
 	  MODE_A(mode);
-	  OCR0B = pwm;
+	  OCR0A = pwm;
 }
+#endif
 
+#ifdef MODE_B
 static void setModeB(uint8_t mode,uint8_t pwm)
 {
 	  MODE_B(mode);
-	  OCR0A = pwm;
+	  OCR0B = pwm;
 }
+#endif
 
 void calcPID(Motor *m,void(*set_mode)(uint8_t mode,uint8_t pwm))
 {    
@@ -380,18 +458,30 @@ void handlePID()
 	if( (motor_mode==MODE_PID) ||
 		(motor_mode==MODE_TEST_01) )
 	{
+#ifdef MODE_A
 		calcPID(&motor_A,setModeA);
+#endif        
+#ifdef MODE_B
 		calcPID(&motor_B,setModeB);
+#endif
 	}
 	else if(motor_mode==MODE_OFF)
 	{
+#ifdef MODE_A
 		setModeA(0,0);
+#endif        
+#ifdef MODE_B
 		setModeB(0,0);
+#endif
 	}
 	else if(motor_mode==MODE_BREAK)
 	{
+#ifdef MODE_A
 		setModeA(0,0xff);
+#endif        
+#ifdef MODE_B
 		setModeB(0,0xff);
+#endif        
 	}
 }
 
@@ -798,6 +888,71 @@ uint8_t i2c_TwiTxHandler( uint16_t idx )
  */
 int main(void)
 {
+    cli();
+#if 0
+    while(1)
+    {
+#ifdef BIT_PWMA
+        REG(DDR,PORT_PWMA) |= (1<<BIT_PWMA);
+        REG(PORT,PORT_PWMA) |= (1<<BIT_PWMA);
+        _delay_ms(1);
+        REG(PORT,PORT_PWMA) &= ~(1<<BIT_PWMA);  
+        REG(DDR,PORT_PWMA) &= ~(1<<BIT_PWMA);
+#endif      
+#ifdef BIT_ENCA
+        REG(DDR,PORT_ENCA) |= (1<<BIT_ENCA);
+        REG(PORT,PORT_ENCA) |= (1<<BIT_ENCA);
+        _delay_ms(2);
+        REG(PORT,PORT_ENCA) &= ~(1<<BIT_ENCA);  
+        REG(DDR,PORT_ENCA) &= ~(1<<BIT_ENCA);
+#endif      
+#ifdef BIT_MA_A
+        REG(DDR,PORT_MA_A) |= (1<<BIT_MA_A);
+        REG(PORT,PORT_MA_A) |= (1<<BIT_MA_A);
+        _delay_ms(3);
+        REG(PORT,PORT_MA_A) &= ~(1<<BIT_MA_A);  
+        REG(DDR,PORT_MA_A) &= ~(1<<BIT_MA_A);
+#endif      
+#ifdef BIT_MA_B
+        REG(DDR,PORT_MA_B) |= (1<<BIT_MA_B);
+        REG(PORT,PORT_MA_B) |= (1<<BIT_MA_B);
+        _delay_ms(4);
+        REG(PORT,PORT_MA_B) &= ~(1<<BIT_MA_B);  
+        REG(DDR,PORT_MA_B) &= ~(1<<BIT_MA_B);
+#endif
+      
+#ifdef BIT_PWMB
+        REG(DDR,PORT_PWMB) |= (1<<BIT_PWMB);
+        REG(PORT,PORT_PWMB) |= (1<<BIT_PWMB);
+        _delay_ms(5);
+        REG(PORT,PORT_PWMB) &= ~(1<<BIT_PWMB);  
+        REG(DDR,PORT_PWMB) &= ~(1<<BIT_PWMB);
+#endif      
+#ifdef BIT_ENCB
+        REG(DDR,PORT_ENCB) |= (1<<BIT_ENCB);
+        REG(PORT,PORT_ENCB) |= (1<<BIT_ENCB);
+        _delay_ms(6);
+        REG(PORT,PORT_ENCB) &= ~(1<<BIT_ENCB);  
+        REG(DDR,PORT_ENCB) &= ~(1<<BIT_ENCB);
+#endif      
+#ifdef BIT_MB_A
+        REG(DDR,PORT_MB_A) |= (1<<BIT_MB_A);
+        REG(PORT,PORT_MB_A) |= (1<<BIT_MB_A);
+        _delay_ms(7);
+        REG(PORT,PORT_MB_A) &= ~(1<<BIT_MB_A);  
+        REG(DDR,PORT_MB_A) &= ~(1<<BIT_MB_A);
+#endif      
+#ifdef BIT_MB_B
+        REG(DDR,PORT_MB_B) |= (1<<BIT_MB_B);
+        REG(PORT,PORT_MB_B) |= (1<<BIT_MB_B);
+        _delay_ms(8);
+        REG(PORT,PORT_MB_B) &= ~(1<<BIT_MB_B);  
+        REG(DDR,PORT_MB_B) &= ~(1<<BIT_MB_B);
+#endif      
+        _delay_ms(100);
+    }
+#endif
+
 	boot_counter = eeprom_read_word(&eeFooByteArray1[0]) + 1; 
 	eeprom_write_word(&eeFooByteArray1[0], boot_counter);
 
@@ -807,25 +962,33 @@ int main(void)
 #ifdef DEBUGUART
 	stdout = &mystdout;
 #endif
-	DDRA |= (1<<PIN_PWMA);
-	DDRB |= (1<<PIN_PWMB);
-
-	DDRA &= ~(1<<PIN_ENCA);
-	DDRA &= ~(1<<PIN_ENCB);
-
-	PORTA |= (1<<PIN_ENCA);
-	PORTA |= (1<<PIN_ENCB);
-
-  PCMSK0 = 3;
-  PCMSK1 = 0;
+#ifdef BIT_PWMA
+    REG(DDR,PORT_PWMA) |= (1<<BIT_PWMA);
+    MODE_A(0);
+    OCR0A = 0;
+#endif
+#ifdef BIT_PWMB
+    REG(DDR,PORT_PWMB) |= (1<<BIT_PWMB);
+    MODE_B(0);
+    OCR0B = 0;
+#endif
+#ifdef BIT_ENCA
+    REG(DDR,PORT_ENCA) &= ~(1<<BIT_ENCA);
+    REG(PORT,PORT_ENCA) |= (1<<BIT_ENCA); // enable pullup
+    PCMSK0 |= (1<<BIT_ENCA);
+#endif
+#ifdef BIT_ENCB
+    REG(DDR,PORT_ENCB) &= ~(1<<BIT_ENCB);
+    REG(PORT,PORT_ENCB) |= (1<<BIT_ENCB); // enable pullup
+    PCMSK0 |= (1<<BIT_ENCB);
+#endif
   GIMSK  = (1<<PCIE0);
   GIFR |= (1<<PCIF0);
 
-  MODE_A(0);
-  MODE_B(0);
-
-  OCR0A = 0;
-  OCR0B = 0;
+#ifdef BIT_MA_EN
+  REG(DDR,PORT_MA_EN) &= ~(1<<BIT_MA_EN);
+  REG(PORT,PORT_MA_EN) |= (1<<BIT_MA_EN);
+#endif
     
 #if 0
   MODE_A(1);
@@ -855,8 +1018,10 @@ int main(void)
   INTOUT(1);
   for(;;)
     {
-	PORTA |= (1<<PIN_INT);
-	PORTA &= ~(1<<PIN_INT);
+        INTOUT(0);
+        _delay_ms(1);
+        INTOUT(1);
+        _delay_ms(1);
     }
 #endif
 
@@ -896,14 +1061,19 @@ int main(void)
 
 #if 0
 	motor_mode = MODE_PWM;
-	setModeA(2,160);
-	setModeB(0,160);
+	setModeA(1,50);
+#endif
+
+#if 0
+	motor_mode = MODE_PWM;
+	setModeA(1,160);
+	setModeB(2,160);
 #endif
 
 #if 0
 	motor_mode = MODE_PID;
-	motor_A.pid_setPoint = MOTOR_RPM(10);
-	motor_B.pid_setPoint = MOTOR_RPM(10);
+	motor_A.pid_setPoint = MOTOR_RPM(3);
+	motor_B.pid_setPoint = MOTOR_RPM(-3);
 #endif
 
 	main_loop_int_pulse = 0;
@@ -911,9 +1081,9 @@ int main(void)
 #if 0
     while(1)
     {
-				DDRA |= (1<<PIN_ENCB);
-                PORTA |= (1<<PIN_ENCB);
-                PORTA &= ~(1<<PIN_ENCB);
+        DDRA |= (1<<PIN_ENCB);
+        PORTA |= (1<<PIN_ENCB);
+        PORTA &= ~(1<<PIN_ENCB);
     }
 #endif
 

@@ -12,21 +12,83 @@
 #                is connected.
 # FUSES ........ Parameters for avrdude to flash the fuses appropriately.
 
-TWI_ADDR   = 10
 #DEBUGUART  = y
 
+# variants:
+#Variants:
+#=========
+#							PA0	PA1	PA2	PA3	PA4	PA5	PA6	PA7	PB0	PB1	PB2	PB3
+#							================================================================================================
+#
+#ATTINY84
+#========
+#A: T84+L298, dual Motor, single encoder			MB_E1	MA_E1	MA_A	MB_B	SCL	INT	SDA	MB_PWM	MA_B	MB_A	MA_PWM	RESET/dW
+#							PCINT0	PCINT1	o	o	-	-	-	OC0B	o	o	OC0A	-
+#
+#B: T84+L298, dual Motor, dual encoder, 2*NAND: 		MB_E1	MA_E1	MA_A	MB_E2	SCL	INT	SDA	MB_PWM	MA_E2	MB_A	MA_PWM	RESET/dW
+#							PCINT0	PCINT1	o	PCINT3	-	-	-	OC0B	PCINT8	o	OC0A	-
+#
+#C: T84+VNH2SP30, single Motor, dual encoder: 		LED	MA_E2	MA_A	MA_CS	SCL	INT	SDA	MA_E1	MA_B	MA_EN	MA_PWM	RESET/dW
+#							o	PCINT1	o	ADC3	-	-	-	ICP	PCINT8	o	OC0A	-
+#
+#ATTINY841
+#=========
+#D: T841+L298, dual Motor, single encoder: 		MA_A	MA_PWM	MB_PWM	MB_B	SCL	INT	SDA	MB_E1	MA_B	MB_A	MA_E1	RESET/dW
+#							-	T0CC0	T0CC1	o	-	-	-	ICP1	o	o	ICP2	-
+#
+#E: T841+L298, dual Motor, dual encoder, 2*NAND: 	MA_A	MA_PWM	MB_PWM	MB_E2	SCL	INT	SDA	MB_E1	MA_E2	MB_A	MA_E1	RESET/dW
+#							-	T0CC0	T0CC1	ADC3	-	-	-	ICP1	PCINT8	o	ICP2	-
+#
+#F: T841+VNH2SP30, single Motor, dual encoder: 		LED	MA_PWM	MA_A	MA_CS	SCL	INT	SDA	MA_E1	MA_E2	MA_EN	MA_B	RESET/dW
+#							o	T0CC0	o	ADC3	-	-	-	ICP1	PCINT8	o	o	-
+
+#VARIANT= VARIANT_A_T84_L298_SE
+#VARIANT= VARIANT_D_T841_L298_SE
+#VARIANT= VARIANT_F_T841_VNH2SP30_SE
+VARIANT= VARIANT_C_T84_VNH2SP30_SE
+
+ifeq ($(VARIANT),VARIANT_A_T84_L298_SE)
 DEVICE     = attiny84
+TWI_ADDR   = 10
+endif
+
+ifeq ($(VARIANT),VARIANT_D_T841_L298_SE)
+DEVICE     = attiny841
+TWI_ADDR   = 11
+endif
+
+ifeq ($(VARIANT),VARIANT_F_T841_VNH2SP30_SE)
+DEVICE     = attiny841
+TWI_ADDR   = 12
+endif
+
+ifeq ($(VARIANT),VARIANT_C_T84_VNH2SP30_SE)
+DEVICE     = attiny84
+TWI_ADDR   = 12
+endif
+
+CFLAGS += -D$(VARIANT)
+
 CLOCK      = 8000000
 PROGRAMMER = -c usbtiny
 #PROGRAMMER = -c stk500 -P /dev/ttyACM0
-OBJECTS    = main.o pid.o ../lib/i2c.o
+OBJECTS    = main.o pid.o 
+
+ifeq ($(DEVICE), attiny84)
+OBJECTS += ../lib/i2c.o
+endif
+
+ifeq ($(DEVICE), attiny841)
+OBJECTS += ../lib/i2c_tws.o
+endif
+
 ifdef DEBUGUART
 CFLAGS += -DDEBUGUART
 endif
 
 #http://www.engbedded.com/fusecalc/
-#FUSES      = -U lfuse:w:0xd2:m -U hfuse:w:0xde:m -U efuse:w:0xfe:m
-FUSES      = -U lfuse:w:0xd2:m -U hfuse:w:0x9e:m -U efuse:w:0xfe:m
+FUSES      = -U lfuse:w:0xd2:m -U hfuse:w:0xde:m -U efuse:w:0xfe:m
+#FUSES      = -U lfuse:w:0xd2:m -U hfuse:w:0x9e:m -U efuse:w:0xfe:m
 
 dw: clean all
 	dwdebug device usbtiny,l main.elf,qr

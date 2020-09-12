@@ -1,1 +1,0 @@
-#include <ros2/xrcedds/micro_xrce_dds/lib/include/uxr/client/profile/transport/serial/serial_protocol.h>

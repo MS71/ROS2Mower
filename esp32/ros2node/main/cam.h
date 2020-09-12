@@ -1,1 +1,0 @@
-void camera_init();

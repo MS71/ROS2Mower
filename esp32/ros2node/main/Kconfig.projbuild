@@ -1,0 +1,65 @@
+menu "ROS2Mower Configuration"
+
+choice
+    prompt "HW Variant"
+    default ROS2NODE_HW_ROS2MOWER
+
+    config ROS2NODE_HW_ROS2MOWER
+        bool "ROS2Mower"
+
+    config ROS2NODE_HW_ROS2ZUMO
+        bool "ROS2Zumo"
+endchoice
+
+config ENABLE_WEBUI
+	bool "Enable Web UI"
+	default y
+    
+config ENABLE_ROS2
+	bool "Enable ROS2 Support"
+	default y
+
+config ENABLE_SDCARD
+	bool "Enable SDCard Support"
+	default y
+
+
+config ENABLE_CAMERA
+	bool "Enable CAMERA Support"
+	default y
+
+config ENABLE_SPI
+	bool "Enable SPI Support"
+	default y
+
+config ENABLE_I2C
+	bool "Enable I2C Support"
+	default y
+
+if ENABLE_I2C
+    config ENABLE_I2C_POWER
+        bool "Enable I2C Power"
+        default y
+    config ENABLE_I2C_MOTOR
+        bool "Enable I2C Motor"
+        default y
+    config ENABLE_I2C_OLED
+        bool "Enable I2C OLED"
+        default y
+    config ENABLE_I2C_BNO055
+        bool "Enable I2C BNO055"
+        default y
+    config ENABLE_I2C_VL53L0X
+        bool "Enable I2C VL53L0X"
+        default n
+    config ENABLE_I2C_VL53L1X
+        bool "Enable I2C VL53L1X"
+        default n
+endif
+
+config ENABLE_GPS
+	bool "Enable GPS Support"
+	default y
+
+endmenu
+

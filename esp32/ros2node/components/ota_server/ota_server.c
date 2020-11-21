@@ -1,3 +1,4 @@
+//#define LOG_LOCAL_LEVEL ESP_LOG_INFO
 #include <string.h>
 
 #include "esp_system.h"

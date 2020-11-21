@@ -684,7 +684,7 @@ void VL53L1X::setupManualCalibration()
 // read measurement results into buffer
 void VL53L1X::readResults()
 {
-    i2c_cmd_handle_t CommandHandle = NULL;
+    //i2c_cmd_handle_t CommandHandle = NULL;
 
     ESP_LOGI(TAG, "readResults() ...");
 

@@ -8,7 +8,7 @@
 
 #define I2C_TIMEOUT 100
 
-static const char* TAG = "VL";
+//static const char* TAG = "VL";
 
 VL53L0X_Error esp_to_vl53l0x_error(esp_err_t esp_err) {
     switch (esp_err) {

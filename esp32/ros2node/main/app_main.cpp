@@ -35,7 +35,8 @@
 #include "driver/uart.h"
 #include "esp_console.h"
 #include "esp_err.h"
-#include "esp_event_loop.h"
+#include "esp_event.h"
+#include "esp_event_legacy.h"
 #include "esp_log.h"
 #include "esp_pm.h"
 #include "esp_sleep.h"
@@ -47,7 +48,7 @@
 #include "esp_wifi.h"
 #include "i2chandler.h"
 #include "nvs_flash.h"
-#include "rom/uart.h"
+#include "esp32/rom/uart.h"
 #include "sdmmc_cmd.h"
 
 extern "C" {
@@ -564,6 +565,7 @@ static esp_err_t event_handler(void* ctx, system_event_t* event)
     switch(event->event_id) {
     case SYSTEM_EVENT_STA_START:
         esp_wifi_connect();
+        break;
 
     case SYSTEM_EVENT_STA_GOT_IP:
         xEventGroupSetBits(s_wifi_event_group, CONNECTED_BIT);
@@ -577,8 +579,8 @@ static esp_err_t event_handler(void* ctx, system_event_t* event)
             nvs_handle my_handle;
             esp_err_t err = nvs_open("wifi", NVS_READWRITE, &my_handle);
             if(err == ESP_OK) {
-            size_t my_wifi_ssid_size = sizeof(my_wifi_ssid);
-            size_t my_wifi_psk_size = sizeof(my_wifi_psk);
+            //size_t my_wifi_ssid_size = sizeof(my_wifi_ssid);
+            //size_t my_wifi_psk_size = sizeof(my_wifi_psk);
             nvs_set_str(my_handle, "ssid", my_wifi_ssid);
             nvs_set_str(my_handle, "psk", my_wifi_psk);
             nvs_close(my_handle);

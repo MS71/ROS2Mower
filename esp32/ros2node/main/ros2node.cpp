@@ -1,4 +1,4 @@
-#define LOG_LOCAL_LEVEL ESP_LOG_INFO
+//#define LOG_LOCAL_LEVEL ESP_LOG_INFO
 
 static const char* TAG = "R2N";
 
@@ -56,6 +56,7 @@ extern "C"
 #include <rcl/error_handling.h>
 #include <rcl/rcl.h>
 #include <rosidl_runtime_c/primitives_sequence_functions.h>
+#include <rclc_lifecycle/rclc_lifecycle.h>
 #include <sensor_msgs/msg/imu.h>
 #include <sensor_msgs/msg/joy.h>
 #include <std_msgs/msg/header.h>
@@ -242,7 +243,7 @@ void timer_callback(rcl_timer_t* timer, int64_t last_call_time)
 #ifdef I2CROS2SENSORDATA_USE_GEOMETRY_MSG_POSE_2D
             if(pData->msg_pose_2d_valid == true)
             {
-                geometry_msgs__msg__Pose2D msg = pData->msg_pose_2d;
+                //geometry_msgs__msg__Pose2D msg = pData->msg_pose_2d;
                 pData->msg_pose_2d_valid = false;
                 i2c_release_data();
                 RCSOFTCHECK(rcl_publish(&r2n_md.pub.pub_pose_2d, &pData->msg_pose_2d, NULL));
@@ -302,6 +303,13 @@ void timer_callback(rcl_timer_t* timer, int64_t last_call_time)
     }
 }
 
+  
+// lifecycle callback
+rcl_ret_t my_on_configure() {
+  ESP_LOGW(TAG, "my_lifecycle_node: on_configure() callback called.");
+  return RCL_RET_OK;
+}
+
 /**
  * @brief
  * @param param
@@ -311,6 +319,8 @@ static void r2n_task(void* param)
     ESP_LOGI(TAG, "ros2node_task() ...");
     rcl_allocator_t allocator = rcl_get_default_allocator();
     rclc_support_t support;
+
+    //usleep(5000);
 
     rcl_init_options_t init_options = rcl_get_zero_initialized_init_options();
     RCCHECK(rcl_init_options_init(&init_options, allocator));
@@ -330,6 +340,23 @@ static void r2n_task(void* param)
     const unsigned int timer_timeout = 100;
     RCCHECK(rclc_timer_init_default(&timer, &support, RCL_MS_TO_NS(timer_timeout), timer_callback));
 
+#if 0
+    // rcl state machine
+    rcl_lifecycle_state_machine_t state_machine =
+        rcl_lifecycle_get_zero_initialized_state_machine();
+  
+    // create the lifecycle node
+    rclc_lifecycle_node_t my_lifecycle_node;
+    rcl_ret_t rc = rclc_make_node_a_lifecycle_node(
+      &my_lifecycle_node,
+      &node,
+      &state_machine,
+      &allocator);
+  
+    // register callbacks
+    //rclc_lifecycle_register_on_configure(&my_lifecycle_node, &my_on_configure);
+#endif
+  
     // create publisher
     RCCHECK(rclc_publisher_init_default(&r2n_md.pub.pub_wifi_rssi, &node,
         ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int8), ROS2_NODENAME "/wifi_rssi"));
@@ -437,6 +464,30 @@ static void r2n_task(void* param)
 
     ESP_LOGI(TAG, "ros2node_task() ... done");
     vTaskDelete(NULL);
+}
+
+
+/**
+ * @brief
+ */
+uint8_t ros2node_connected()
+{
+    if( rcl_publisher_is_valid(&r2n_md.pub.pub_ubat) )
+    {
+#if 0        
+        size_t subscription_count = 0;
+        rcl_ret_t ret = 
+            rcl_publisher_get_subscription_count(&r2n_md.pub.pub_ubat, &subscription_count);
+        if( ret == RCL_RET_OK )
+        {
+            if( subscription_count != 0 )
+            {
+                return 1;
+            }
+        }
+#endif        
+    }
+    return 0;
 }
 
 /**

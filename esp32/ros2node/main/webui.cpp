@@ -13,7 +13,7 @@
 
 #include "esp_wifi.h"
 #include "esp_log.h"
-#include "esp_event_loop.h"
+#include "esp_event.h"
 #include "nvs_flash.h"
 #include "driver/ledc.h"
 
@@ -142,7 +142,7 @@ static void http_serve(struct netconn *conn) {
       else if(strstr(buf,"GET / ")
            && strstr(buf,"Upgrade: websocket")) {
         ESP_LOGI(TAG,"Requesting websocket on /");
-        ws_server_add_client(conn,buf,buflen,"/",websocket_callback);
+        ws_server_add_client(conn,buf,buflen,(char*)"/",websocket_callback);
         netbuf_delete(inbuf);
       }
 

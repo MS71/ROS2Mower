@@ -26,9 +26,9 @@
 #include "lwip/sys.h"
 #include <lwip/netdb.h>
 
-#include "cmd_system.h"
+//#include "cmd_system.h"
 //#include "cmd_wifi.h"
-#include "cmd_nvs.h"
+//#include "cmd_nvs.h"
 
 #include "i2chandler.h"
 
@@ -250,15 +250,18 @@ static void con_handle()
                 return;
             }
 #ifdef CONFIG_ENABLE_I2C_POWER
-#ifdef CONFIG_ROS2NODE_HW_ROS2MOWER
             else if(strcasecmp("reboot",rx_buffer)==0 )
             {
-                i2c_lock();
+                //i2c_lock();
+#ifdef CONFIG_ROS2NODE_HW_ROS2MOWER
                 i2cnode_set_u16(PWRNODE_I2C_ADDR, 0x1A, 1); /* TWI_MEM_REBOOT */
-                i2c_release();
+#endif
+#ifdef CONFIG_ROS2NODE_HW_ROS2ZUMO
+                //i2cnode_set_u16(STM32_I2C_ADDR, 0x64 /*I2C_REG_TB_U16_TON_WDG*/, 1); 
+#endif // CONFIG_ROS2NODE_HW_ROS2ZUMO
+                //i2c_release();
                 con_printf("rebooting ...\n");
             }
-#endif
 #endif
             else if(strcasecmp("test",rx_buffer)==0 )
             {

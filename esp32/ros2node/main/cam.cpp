@@ -1,3 +1,4 @@
+#if 0
 #include <exception>
 #include <math.h>
 #include <stdio.h>
@@ -20,7 +21,7 @@
 #include "driver/sdspi_host.h"
 #include "driver/uart.h"
 #include "esp_err.h"
-#include "esp_event_loop.h"
+#include "esp_event.h"
 #include "esp_log.h"
 #include "esp_system.h"
 #include "esp_vfs_fat.h"
@@ -264,3 +265,4 @@ void camera_init()
 #endif
 
 }
+#endif

@@ -33,6 +33,10 @@
 
 #include "console.h"
 
+#ifdef CONFIG_ENABLE_ROS2
+#include "ros2node.h"
+#endif
+
 #ifdef CONFIG_ENABLE_I2C_BNO055
 #include "BNO055ESP32.h"
 #endif
@@ -194,6 +198,20 @@ esp_err_t i2cnode_read(uint8_t i2caddr, uint8_t regaddr, uint8_t* buf, uint32_t 
     esp_err_t err = ESP_OK;
     if(i2c_lock())
     {
+#if 0
+        if( i2caddr == 0x10 )
+        {
+            i2c_set_period((i2c_port_t)I2C_BUS_PORT,
+                I2C_APB_CLK_FREQ/(2*I2C_BUS_CLOCK_SLOW),
+                I2C_APB_CLK_FREQ/(2*I2C_BUS_CLOCK_SLOW));
+        }
+        else
+        {
+              i2c_set_period((i2c_port_t)I2C_BUS_PORT,
+                I2C_APB_CLK_FREQ/(2*I2C_BUS_CLOCK_SLOW),
+                I2C_APB_CLK_FREQ/(2*I2C_BUS_CLOCK_SLOW));
+        }
+ #endif 
         i2c_cmd_handle_t CommandHandle = NULL;
         if((CommandHandle = i2c_cmd_link_create()) != NULL)
         {
@@ -207,7 +225,9 @@ esp_err_t i2cnode_read(uint8_t i2caddr, uint8_t regaddr, uint8_t* buf, uint32_t 
             err = i2c_master_cmd_begin((i2c_port_t)I2C_BUS_PORT, CommandHandle, pdMS_TO_TICKS(I2C_TIMEOUT_MS));
             if(err != ESP_OK)
             {
-                ESP_LOGE(TAG, "i2cnode_get i2caddr=0x%02x regaddr=0x%02x err=0x%02x", i2caddr, regaddr, err);
+                i2c_setpin_boot(1);
+                ESP_LOGE(TAG, "i2cnode_read i2caddr=0x%02x regaddr=0x%02x err=0x%02x", i2caddr, regaddr, err);
+                i2c_setpin_boot(0);
             }
             i2c_cmd_link_delete(CommandHandle);
         }
@@ -230,6 +250,20 @@ esp_err_t i2cnode_write(uint8_t i2caddr, uint8_t regaddr, uint8_t* buf, uint32_t
     esp_err_t err = ESP_OK;
     if(i2c_lock())
     {
+#if 0
+        if( i2caddr == 0x10 )
+        {
+            i2c_set_period((i2c_port_t)I2C_BUS_PORT,
+                I2C_APB_CLK_FREQ/(2*I2C_BUS_CLOCK_SLOW),
+                I2C_APB_CLK_FREQ/(2*I2C_BUS_CLOCK_SLOW));
+        }
+        else
+        {
+              i2c_set_period((i2c_port_t)I2C_BUS_PORT,
+                I2C_APB_CLK_FREQ/(2*I2C_BUS_CLOCK_SLOW),
+                I2C_APB_CLK_FREQ/(2*I2C_BUS_CLOCK_SLOW));
+        }
+#endif
         i2c_cmd_handle_t CommandHandle = NULL;
         if((CommandHandle = i2c_cmd_link_create()) != NULL)
         {
@@ -357,7 +391,7 @@ uint64_t i2cnode_get_u64(uint8_t i2caddr, uint8_t regaddr) /* throw(int) */
     uint8_t tmpbuf[8] = {};
     if((err = i2cnode_read(i2caddr, regaddr, tmpbuf, sizeof(tmpbuf))) != ESP_OK)
     {
-        throw err;
+        throw err | (i2caddr << 16) | 1 << 24;
     }
     v |= ((uint64_t)tmpbuf[7] << 56);
     v |= ((uint64_t)tmpbuf[6] << 48);
@@ -383,7 +417,7 @@ uint32_t i2cnode_get_u32(uint8_t i2caddr, uint8_t regaddr) /* throw(int) */
     uint8_t tmpbuf[8] = {};
     if((err = i2cnode_read(i2caddr, regaddr, tmpbuf, sizeof(tmpbuf))) != ESP_OK)
     {
-        throw err;
+        throw err | (i2caddr << 16) | 2 << 24;
     }
     v |= ((uint32_t)tmpbuf[3] << 24);
     v |= ((uint32_t)tmpbuf[2] << 16);
@@ -405,7 +439,7 @@ uint16_t i2cnode_get_u16(uint8_t i2caddr, uint8_t regaddr) /* throw(int) */
     uint8_t tmpbuf[2] = {};
     if((err = i2cnode_read(i2caddr, regaddr, tmpbuf, sizeof(tmpbuf))) != ESP_OK)
     {
-        throw err;
+        throw err | (i2caddr << 16) | 3 << 24;
     }
     v |= ((uint16_t)tmpbuf[1] << 8);
     v |= ((uint16_t)tmpbuf[0] << 0);
@@ -425,7 +459,7 @@ uint8_t i2cnode_get_u8(uint8_t i2caddr, uint8_t regaddr) /* throw(int) */
     uint8_t tmpbuf[1] = {};
     if((err = i2cnode_read(i2caddr, regaddr, tmpbuf, sizeof(tmpbuf))) != ESP_OK)
     {
-        throw err;
+        throw err | (i2caddr << 16) | 4 << 24;
     }
     v |= (tmpbuf[0] << 0);
     return v;
@@ -444,7 +478,7 @@ int64_t i2cnode_get_i64(uint8_t i2caddr, uint8_t regaddr) /* throw(int) */
     uint8_t tmpbuf[8] = {};
     if((err = i2cnode_read(i2caddr, regaddr, tmpbuf, sizeof(tmpbuf))) != ESP_OK)
     {
-        throw err;
+        throw err | (i2caddr << 16) | 5 << 24;
     }
     v |= ((int64_t)tmpbuf[7] << 56);
     v |= ((int64_t)tmpbuf[6] << 48);
@@ -470,7 +504,7 @@ int16_t i2cnode_get_i16(uint8_t i2caddr, uint8_t regaddr) /* throw(int) */
     uint8_t tmpbuf[2] = {};
     if((err = i2cnode_read(i2caddr, regaddr, tmpbuf, sizeof(tmpbuf))) != ESP_OK)
     {
-        throw err;
+        throw err | (i2caddr << 16) | 6 << 24;
     }
     v |= (tmpbuf[1] << 8);
     v |= (tmpbuf[0] << 0);
@@ -490,7 +524,7 @@ int8_t i2cnode_get_i8(uint8_t i2caddr, uint8_t regaddr) /* throw(int) */
     uint8_t tmpbuf[2] = {};
     if((err = i2cnode_read(i2caddr, regaddr, tmpbuf, sizeof(tmpbuf))) != ESP_OK)
     {
-        throw err;
+        throw err | (i2caddr << 16) | 7 << 24;
     }
     v |= (tmpbuf[0] << 0);
     return v;
@@ -510,7 +544,7 @@ void i2cnode_set_u16(uint8_t i2caddr, uint8_t regaddr, uint16_t v) /* throw(int)
     tmpbuf[1] = (v >> 8) & 0xff;
     if((err = i2cnode_write(i2caddr, regaddr, tmpbuf, sizeof(tmpbuf))) != ESP_OK)
     {
-        throw err;
+        throw err | (i2caddr << 16) | 8 << 24;
     }
 }
 
@@ -527,7 +561,7 @@ void i2cnode_set_u8(uint8_t i2caddr, uint8_t regaddr, uint8_t v) /* throw(int) *
     tmpbuf[0] = (v >> 0) & 0xff;
     if((err = i2cnode_write(i2caddr, regaddr, tmpbuf, sizeof(tmpbuf))) != ESP_OK)
     {
-        throw err;
+        throw err | (i2caddr << 16) | 9 << 24;
     }
 }
 
@@ -545,7 +579,7 @@ void i2cnode_set_i16(uint8_t i2caddr, uint8_t regaddr, int16_t v) /* throw(int) 
     tmpbuf[1] = (v >> 8) & 0xff;
     if((err = i2cnode_write(i2caddr, regaddr, tmpbuf, sizeof(tmpbuf))) != ESP_OK)
     {
-        throw err;
+        throw err | (i2caddr << 16) | 10 << 24;
     }
 }
 
@@ -738,7 +772,9 @@ void i2cnode_init_motor()
     }
     catch(int err)
     {
+        i2c_setpin_boot(1);
         ESP_LOGE(TAG, "I2C exception err=0x%02x", err);
+        i2c_setpin_boot(0);
     }
 #endif
 #endif
@@ -1015,7 +1051,7 @@ void i2c_handle_bno055()
                     i2c_md.ros2_data.msg_imu.linear_acceleration.y = -vector_linaccl.x /* / 100.0*/;
                     i2c_md.ros2_data.msg_imu.linear_acceleration.z = vector_linaccl.z /* / 100.0*/;
 
-                    struct timespec tv = {0};
+                    struct timespec tv = {};
                     clock_gettime(CLOCK_MONOTONIC, &tv);
                     i2c_md.ros2_data.msg_imu.header.stamp.nanosec = tv.tv_nsec;
                     i2c_md.ros2_data.msg_imu.header.stamp.sec = tv.tv_sec;
@@ -1170,7 +1206,7 @@ void i2c_lidar_handle()
                 uint16_t vl53l0x_data = 0;
                 if(i2c_md.vl53l0x[i]->readData(&vl53l0x_data) == true)
                 {
-                    struct timespec tv = {0};
+                    struct timespec tv = {};
                     clock_gettime(CLOCK_MONOTONIC, &tv);
                     i2c_md.ros2_data.msg_range[i].header.stamp.nanosec = tv.tv_nsec;
                     i2c_md.ros2_data.msg_range[i].header.stamp.sec = tv.tv_sec;
@@ -1285,8 +1321,11 @@ static void i2c_task(void* param)
 #ifdef CONFIG_ROS2NODE_HW_ROS2ZUMO
     try
     {
-        i2cnode_set_u16(STM32_I2C_ADDR, 0x60, 0x0005); // shutdoen in 5 seconds
+        i2cnode_set_u16(STM32_I2C_ADDR, 0x60 /*I2C_REG_TB_U16_TON_TOUT*/, 10); // shutdown in 10 seconds
+        i2cnode_set_u16(STM32_I2C_ADDR, 0x68 /*I2C_REG_TB_U16_TOFF_PERIOD*/, 60);
+        
         i2cnode_set_u16(STM32_I2C_ADDR, 0x70 /*I2C_REG_TB_U16_VL53L1X_RSTREG*/, 0x0000);
+        //i2cnode_set_u16(STM32_I2C_ADDR, 0x64 /*I2C_REG_TB_U16_TON_WDG*/, 10); // set STM32 watchdog timeout to 10 seconds ...
         vTaskDelay(50 / portTICK_PERIOD_MS);
 #ifdef CONFIG_ENABLE_I2C_BNO055
         // release BNO055
@@ -1314,7 +1353,7 @@ static void i2c_task(void* param)
     }
     catch(int err)
     {
-        ESP_LOGE(TAG, "i2c_task() I2C exception err=0x%02x", err);
+        ESP_LOGE(TAG, "i2c_task() I2C exception err=0x%08x", err);
         esp_pm_lock_release(pmlock);
         while(1)
         {
@@ -1350,9 +1389,19 @@ static void i2c_task(void* param)
          */
         bool keepon = false;
 
-        i2c_setpin_boot(0);
+        //i2c_setpin_boot(1);
         esp_pm_lock_acquire(pmlock);
-        i2c_setpin_boot(1);
+        //i2c_setpin_boot(0);
+
+#ifdef CONFIG_ROS2NODE_HW_ROS2ZUMO
+#ifdef CONFIG_ENABLE_ROS2
+        if( ros2node_connected() != 0 )
+        {
+            ESP_LOGE(TAG, "i2c_task() keep on");
+            //i2cnode_set_u16(STM32_I2C_ADDR, 0x60, 30); // shutdown in 10 seconds
+        }
+#endif
+#endif // CONFIG_ROS2NODE_HW_ROS2ZUMO
 
 #ifdef CONFIG_ENABLE_I2C_BNO055
         i2c_handle_bno055();
@@ -1476,6 +1525,12 @@ static void i2c_task(void* param)
                     i2c_cmd_vel_active());
             }
 #endif
+#ifdef CONFIG_ROS2NODE_HW_ROS2ZUMO
+            if(keepon == true || console_connected() || i2c_cmd_vel_active())
+            {
+                i2cnode_set_u16(STM32_I2C_ADDR, 0x60 /*I2C_REG_TB_U16_TON_TOUT*/, 10); // shutdown in 10 seconds
+            }
+#endif // CONFIG_ROS2NODE_HW_ROS2ZUMO
 #endif
             (void)keepon;
 
@@ -1577,11 +1632,11 @@ void i2c_handler_init()
     Config.master.clk_speed = I2C_BUS_CLOCK;
     i2c_param_config((i2c_port_t)I2C_BUS_PORT, &Config);
     i2c_driver_install((i2c_port_t)I2C_BUS_PORT, Config.mode, 0, 0, 0);
-    //		i2c_set_timeout((i2c_port_t)I2C_BUS_PORT, (I2C_APB_CLK_FREQ / Config.master.clk_speed)*1024);
     i2c_set_timeout((i2c_port_t)I2C_BUS_PORT, I2C_APB_CLK_FREQ / 100); /* 10ms timeout */
-    // i2c_set_start_timing((i2c_port_t)I2C_BUS_PORT,I2C_APB_CLK_FREQ/10000,I2C_APB_CLK_FREQ/10000);
-    // i2c_set_stop_timing((i2c_port_t)I2C_BUS_PORT,I2C_APB_CLK_FREQ/10000,I2C_APB_CLK_FREQ/10000);
-
+    
+    //i2c_set_start_timing((i2c_port_t)I2C_BUS_PORT,I2C_APB_CLK_FREQ/1000,I2C_APB_CLK_FREQ/1000);
+    //i2c_set_stop_timing((i2c_port_t)I2C_BUS_PORT,I2C_APB_CLK_FREQ/1000,I2C_APB_CLK_FREQ/1000);
+        
     xTaskCreate(&i2c_task, "i2c_task", 8192, NULL, 5, NULL);
 }
 

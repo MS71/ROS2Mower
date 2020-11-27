@@ -36,6 +36,10 @@ void i2c_setpin_boot(int level);
 #ifdef I2CROS2SENSORDATA_USE_GEOMETRY_MSG_POSE_2D    
 #include <geometry_msgs/msg/pose2_d.h>
 #endif
+#define noI2CROS2SENSORDATA_USE_GEOMETRY_MSG_TF
+#ifdef I2CROS2SENSORDATA_USE_GEOMETRY_MSG_TF
+#include <tf2_msgs/msg/tf_message.h>
+#endif
 #include <sensor_msgs/msg/range.h>
 #include <geometry_msgs/msg/transform_stamped.h>
 typedef struct
@@ -56,6 +60,10 @@ typedef struct
 #ifdef I2CROS2SENSORDATA_USE_GEOMETRY_MSG_POSE_2D
     geometry_msgs__msg__Pose2D              msg_pose_2d;
     bool                                    msg_pose_2d_valid;
+#endif
+#ifdef I2CROS2SENSORDATA_USE_GEOMETRY_MSG_TF
+    tf2_msgs__msg__TFMessage                msg_tf;
+    bool                                    msg_tf_valid;
 #endif
     // range msg
     #define I2CROS2SENSORDATA_NUM_RANGE 12

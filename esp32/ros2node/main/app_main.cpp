@@ -29,7 +29,9 @@
 
 #include "driver/gpio.h"
 #include "driver/i2c.h"
+#ifndef CONFIG_IDF_TARGET_ESP32S2
 #include "driver/sdmmc_host.h"
+#endif
 #include "driver/sdspi_host.h"
 #include "driver/spi_master.h"
 #include "driver/uart.h"
@@ -528,7 +530,11 @@ void app_main(void)
     // Configure dynamic frequency scaling:
     // maximum and minimum frequencies are set in sdkconfig,
     // automatic light sleep is enabled if tickless idle support is enabled.
+#ifdef CONFIG_IDF_TARGET_ESP32S2
+    esp_pm_config_esp32s2_t pm_config = {};
+#else
     esp_pm_config_esp32_t pm_config = {};
+#endif    
     pm_config.max_freq_mhz = 240;
     pm_config.min_freq_mhz = 40;
 #if CONFIG_FREERTOS_USE_TICKLESS_IDLE

@@ -9,6 +9,9 @@ choice
 
     config ROS2NODE_HW_ROS2ZUMO
         bool "ROS2Zumo"
+
+    config ROS2NODE_HW_S2
+        bool "ESP32-S2"
 endchoice
 
 config ENABLE_WEBUI

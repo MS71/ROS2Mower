@@ -653,6 +653,7 @@ static bool I2CDefaultReset(struct SSD1306_Device* Display)
  */
 void i2c_handle_cmd_vel()
 {
+#ifdef WHEEL_DIAMETER
     if(i2c_md.cmd_vel.update == true)
     {
         i2c_md.cmd_vel.update = false;
@@ -718,6 +719,7 @@ void i2c_handle_cmd_vel()
 #endif // CONFIG_ROS2NODE_HW_ROS2ZUMO
 #endif
     }
+#endif /* WHEEL_DIAMETER */ 
 }
 
 /**
@@ -1321,11 +1323,15 @@ static void i2c_task(void* param)
 #ifdef CONFIG_ROS2NODE_HW_ROS2ZUMO
     try
     {
-        i2cnode_set_u16(STM32_I2C_ADDR, 0x60 /*I2C_REG_TB_U16_TON_TOUT*/, 10); // shutdown in 10 seconds
-        i2cnode_set_u16(STM32_I2C_ADDR, 0x68 /*I2C_REG_TB_U16_TOFF_PERIOD*/, 60);
+#ifdef CONFIG_ENABLE_I2C_POWER
+        i2cnode_set_u16(STM32_I2C_ADDR, 
+            0x60 /*I2C_REG_TB_U16_TON_TOUT*/, 
+            PWR_KEEP_ALIVE_DELAY); // shutdown in 10 seconds
+        i2cnode_set_u16(STM32_I2C_ADDR, 0x68 /*I2C_REG_TB_U16_TOFF_PERIOD*/, 600);
         
         i2cnode_set_u16(STM32_I2C_ADDR, 0x70 /*I2C_REG_TB_U16_VL53L1X_RSTREG*/, 0x0000);
         //i2cnode_set_u16(STM32_I2C_ADDR, 0x64 /*I2C_REG_TB_U16_TON_WDG*/, 10); // set STM32 watchdog timeout to 10 seconds ...
+#endif
         vTaskDelay(50 / portTICK_PERIOD_MS);
 #ifdef CONFIG_ENABLE_I2C_BNO055
         // release BNO055
@@ -1388,20 +1394,11 @@ static void i2c_task(void* param)
          * WHILE ...
          */
         bool keepon = false;
-
+        bool shutdown = false;
+        
         //i2c_setpin_boot(1);
         esp_pm_lock_acquire(pmlock);
         //i2c_setpin_boot(0);
-
-#ifdef CONFIG_ROS2NODE_HW_ROS2ZUMO
-#ifdef CONFIG_ENABLE_ROS2
-        if( ros2node_connected() != 0 )
-        {
-            ESP_LOGE(TAG, "i2c_task() keep on");
-            //i2cnode_set_u16(STM32_I2C_ADDR, 0x60, 30); // shutdown in 10 seconds
-        }
-#endif
-#endif // CONFIG_ROS2NODE_HW_ROS2ZUMO
 
 #ifdef CONFIG_ENABLE_I2C_BNO055
         i2c_handle_bno055();
@@ -1526,12 +1523,26 @@ static void i2c_task(void* param)
             }
 #endif
 #ifdef CONFIG_ROS2NODE_HW_ROS2ZUMO
-            if(keepon == true || console_connected() || i2c_cmd_vel_active())
+            if(keepon == true || console_connected() || 
+#ifdef CONFIG_ENABLE_ROS2
+                /*ros2node_connected() != 0 ||*/
+#endif
+                i2c_cmd_vel_active() )
             {
-                i2cnode_set_u16(STM32_I2C_ADDR, 0x60 /*I2C_REG_TB_U16_TON_TOUT*/, 10); // shutdown in 10 seconds
+#ifdef CONFIG_ENABLE_I2C_POWER
+                i2cnode_set_u16(STM32_I2C_ADDR, 
+                    0x60 /*I2C_REG_TB_U16_TON_TOUT*/, 
+                    PWR_KEEP_ALIVE_DELAY); // shutdown in 10 seconds
+#endif
             }
 #endif // CONFIG_ROS2NODE_HW_ROS2ZUMO
+#ifdef CONFIG_ENABLE_I2C_POWER
+            if( i2cnode_get_u16(STM32_I2C_ADDR, 0x60 /*I2C_REG_TB_U16_TON_TOUT*/) < 2 )
+            {
+                shutdown = true;
+            }
 #endif
+#endif // CONFIG_ENABLE_I2C_POWER
             (void)keepon;
 
 #ifdef CONFIG_ENABLE_I2C_MOTOR
@@ -1550,6 +1561,12 @@ static void i2c_task(void* param)
          */
         esp_pm_lock_release(pmlock);
 
+        while( shutdown == true )
+        {
+            // wait for shutdown ...
+            vTaskDelay(10 / portTICK_PERIOD_MS);
+        }
+        
         if(i2c_cmd_vel_active())
         {
             vTaskDelay(10 / portTICK_PERIOD_MS);

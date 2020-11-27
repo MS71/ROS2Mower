@@ -94,7 +94,19 @@
 
 #define ROS2_NODENAME "ros2zumo"
 
+#define PWR_KEEP_ALIVE_DELAY    15
+
 #endif /* ROS2NODE_HW_ROS2ZUMO */
+/***********************************************************
+ */
+#ifdef CONFIG_ROS2NODE_HW_S2
+
+#define I2C_BUS_PORT 0
+#define I2C_BUS_SDA 13
+#define I2C_BUS_SCL 12
+#define I2C_BUS_INT 4
+
+#endif /* CONFIG_ROS2NODE_HW_S2 */
 /***********************************************************
  */
  

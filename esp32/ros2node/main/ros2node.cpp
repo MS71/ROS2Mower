@@ -1,8 +1,9 @@
-//#define LOG_LOCAL_LEVEL ESP_LOG_INFO
+#define LOG_LOCAL_LEVEL ESP_LOG_WARN
 
 static const char* TAG = "R2N";
 
 #include "sdkconfig.h"
+#ifdef CONFIG_ENABLE_ROS2
 #include <exception>
 #include <math.h>
 #include <stdio.h>
@@ -71,8 +72,8 @@ extern "C"
 #include <rmw_uros/options.h>
 }
 
-#define CONFIG_MICRO_ROS_AGENT_IP "192.168.1.85\0"
-#define CONFIG_MICRO_ROS_AGENT_PORT "8888\0"
+//#define CONFIG_MICRO_ROS_AGENT_IP "192.168.1.85\0"
+//#define CONFIG_MICRO_ROS_AGENT_PORT "8888\0"
 
 #define ROS2_PUB(_type_, _name_)  \
     rcl_publisher_t pub_##_name_; \
@@ -84,6 +85,7 @@ extern "C"
 
 static struct
 {
+    uint8_t connected;
     uint8_t active;
     TaskHandle_t taskhandle;
 
@@ -112,6 +114,9 @@ static struct
 #endif
 #ifdef I2CROS2SENSORDATA_USE_GEOMETRY_MSG_POSE_2D    
         rcl_publisher_t pub_pose_2d;
+#endif
+#ifdef I2CROS2SENSORDATA_USE_GEOMETRY_MSG_TF
+        rcl_publisher_t pub_tf;
 #endif
         rcl_publisher_t pub_imu;
 #ifdef CONFIG_ROS2NODE_HW_ROS2ZUMO
@@ -253,6 +258,18 @@ void timer_callback(rcl_timer_t* timer, int64_t last_call_time)
                 i2c_release_data();                
             }
 #endif
+#ifdef I2CROS2SENSORDATA_USE_GEOMETRY_MSG_TF
+            if(pData->msg_tf_valid == true)
+            {
+                pData->msg_tf_valid = false;
+                i2c_release_data();
+                RCSOFTCHECK(rcl_publish(&r2n_md.pub.pub_tf, &pData->msg_tf, NULL));
+            }
+            else
+            {
+                i2c_release_data();                
+            }
+#endif
         }
 
         pData = i2c_lock_data();
@@ -326,7 +343,36 @@ static void r2n_task(void* param)
     RCCHECK(rcl_init_options_init(&init_options, allocator));
 
     rmw_init_options_t* rmw_options = rcl_init_options_get_rmw_init_options(&init_options);
-    RCCHECK(rmw_uros_options_set_udp_address(CONFIG_MICRO_ROS_AGENT_IP, CONFIG_MICRO_ROS_AGENT_PORT, rmw_options));
+    {
+        nvs_handle my_handle;
+        esp_err_t err = nvs_open("ros", NVS_READWRITE, &my_handle);
+        if(err == ESP_OK) {
+            static char host_name[32] = {};
+            static char port_str[16] = {};
+            size_t host_name_size = sizeof(host_name);
+            int host_port = 0;
+            nvs_get_str(my_handle, "host", host_name, &host_name_size);
+            nvs_get_i32(my_handle, "port", &host_port);
+            nvs_close(my_handle);
+            sprintf(port_str,"%d",host_port);
+            ESP_LOGW(TAG, "connecting to agent %s %s",host_name,port_str);
+            if( (strlen(host_name) != 0) && (host_port != 0) && (strcmp(host_name,"-") != 0) ) {
+                while(rmw_uros_options_set_udp_address(
+                    host_name, port_str, rmw_options) != RCL_RET_OK){
+                    ESP_LOGW(TAG, "microROS %s %s agent not found",host_name,port_str);
+                    usleep(1000);
+                }
+            }
+            else
+            {
+                while(rmw_uros_discover_agent(rmw_options) != RCL_RET_OK){
+                    ESP_LOGW(TAG, "microROS agent not found");
+                    usleep(1000);
+                }
+            } 
+            ESP_LOGW(TAG, "microROS agent connected");
+        }              
+    }
 
     // create init_options
     RCCHECK(rclc_support_init_with_options(&support, 0, NULL, &init_options, &allocator));
@@ -380,6 +426,10 @@ static void r2n_task(void* param)
 #ifdef I2CROS2SENSORDATA_USE_GEOMETRY_MSG_POSE_2D    
     RCCHECK(rclc_publisher_init_default(&r2n_md.pub.pub_pose_2d, &node,
         ROSIDL_GET_MSG_TYPE_SUPPORT(geometry_msgs, msg, Pose2D), ROS2_NODENAME "/pose2d"));
+#endif
+#ifdef I2CROS2SENSORDATA_USE_GEOMETRY_MSG_TF    
+    RCCHECK(rclc_publisher_init_default(&r2n_md.pub.pub_tf, &node,
+        ROSIDL_GET_MSG_TYPE_SUPPORT(tf2_msgs, msg, TFMessage), ROS2_NODENAME "/tf"));
 #endif
 
     RCCHECK(rclc_publisher_init_default(
@@ -454,6 +504,16 @@ static void r2n_task(void* param)
     while(r2n_md.active == 1)
     {
         rclc_executor_spin_some(&executor, 10);
+
+        if( rmw_uros_check_agent_status(10) == RMW_RET_OK )
+        {
+            r2n_md.connected = 1;
+        }
+        else 
+        {
+            r2n_md.connected = 0;
+        }
+
         usleep(1000);
     }
 
@@ -472,6 +532,8 @@ static void r2n_task(void* param)
  */
 uint8_t ros2node_connected()
 {
+    return r2n_md.active;
+#if 0
     if( rcl_publisher_is_valid(&r2n_md.pub.pub_ubat) )
     {
 #if 0        
@@ -485,9 +547,11 @@ uint8_t ros2node_connected()
                 return 1;
             }
         }
-#endif        
+#endif   
+     
     }
     return 0;
+#endif
 }
 
 /**
@@ -495,6 +559,7 @@ uint8_t ros2node_connected()
  */
 void ros2node_init()
 {
+    r2n_md.connected = 0;
 }
 
 /**
@@ -518,6 +583,7 @@ void ros2node_stop()
     vTaskDelete(r2n_md.taskhandle);
     r2n_md.taskhandle = NULL;
 }
+#endif
 
 /**
  * EOF

@@ -573,6 +573,7 @@ class BNO055 {
 
     bno055_offsets_t getSensorOffsets();
     void setSensorOffsets(bno055_offsets_t newOffsets);
+    void setSensorOffsets2(bno055_offsets_t newOffsets);
     bno055_calibration_t getCalibration();
 
     int8_t getTemp();

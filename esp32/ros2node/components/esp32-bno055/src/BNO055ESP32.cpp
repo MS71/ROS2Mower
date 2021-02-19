@@ -643,6 +643,38 @@ void BNO055::setSensorOffsets(bno055_offsets_t newOffsets) {
     writeLen(BNO055_REG_ACC_OFFSET_X_LSB, offs, 22);
 }
 
+void BNO055::setSensorOffsets2(bno055_offsets_t newOffsets) {
+    if (_mode != BNO055_OPERATION_MODE_CONFIG) {
+        throw BNO055WrongOprMode("setSensorOffsets requires BNO055_OPERATION_MODE_CONFIG");
+    }
+    setPage(0);
+    uint8_t offs[20];
+    offs[0] = (newOffsets.accelOffsetX & 0xFF);
+    offs[1] = ((newOffsets.accelOffsetX >> 8) & 0xFF);
+    offs[2] = (newOffsets.accelOffsetY & 0xFF);
+    offs[3] = ((newOffsets.accelOffsetY >> 8) & 0xFF);
+    offs[4] = (newOffsets.accelOffsetZ & 0xFF);
+    offs[5] = ((newOffsets.accelOffsetZ >> 8) & 0xFF);
+    offs[6] = (newOffsets.magOffsetX & 0xFF);
+    offs[7] = ((newOffsets.magOffsetX >> 8) & 0xFF);
+    offs[8] = (newOffsets.magOffsetY & 0xFF);
+    offs[9] = ((newOffsets.magOffsetY >> 8) & 0xFF);
+    offs[10] = (newOffsets.magOffsetZ & 0xFF);
+    offs[11] = ((newOffsets.magOffsetZ >> 8) & 0xFF);
+    offs[12] = (newOffsets.gyroOffsetX & 0xFF);
+    offs[13] = ((newOffsets.gyroOffsetX >> 8) & 0xFF);
+    offs[14] = (newOffsets.gyroOffsetY & 0xFF);
+    offs[15] = ((newOffsets.gyroOffsetY >> 8) & 0xFF);
+    offs[16] = (newOffsets.gyroOffsetZ & 0xFF);
+    offs[17] = ((newOffsets.gyroOffsetZ >> 8) & 0xFF);
+    offs[18] = (newOffsets.accelRadius & 0xFF);
+    offs[19] = ((newOffsets.accelRadius >> 8) & 0xFF);
+    //offs[20] = (newOffsets.magRadius & 0xFF);
+    //offs[21] = ((newOffsets.magRadius >> 8) & 0xFF);
+
+    writeLen(BNO055_REG_ACC_OFFSET_X_LSB, offs, 20);
+}
+
 bno055_interrupts_status_t BNO055::getInterruptsStatus() {
     setPage(0);
     uint8_t tmp = 0;

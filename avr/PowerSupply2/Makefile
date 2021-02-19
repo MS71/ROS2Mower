@@ -28,6 +28,12 @@ endif
 #FUSES      = -U lfuse:w:0xd2:m -U hfuse:w:0xde:m -U efuse:w:0xfe:m
 FUSES      = -U lfuse:w:0xd2:m -U hfuse:w:0x9e:m -U efuse:w:0xfe:m
 
+dw: clean all
+	dwdebug device usbtiny,l main.elf,qr
+
+dwr: 
+	dwdebug device usbtiny,reset,qr
+
 ######################################################################
 ######################################################################
 

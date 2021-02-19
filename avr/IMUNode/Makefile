@@ -15,24 +15,17 @@
 TWI_ADDR   = 10
 #DEBUGUART  = y
 
-DEVICE     = attiny841
+DEVICE     = attiny85
 CLOCK      = 8000000
 PROGRAMMER = -c usbtiny
 #PROGRAMMER = -c stk500 -P /dev/ttyACM0
-OBJECTS    = main.o pid.o ../lib/i2c_twi.o
+OBJECTS    = main.o ../lib/i2c.o
 ifdef DEBUGUART
 CFLAGS += -DDEBUGUART
 endif
 
 #http://www.engbedded.com/fusecalc/
-#FUSES      = -U lfuse:w:0xd2:m -U hfuse:w:0xde:m -U efuse:w:0xfe:m
-FUSES      = -U lfuse:w:0xd2:m -U hfuse:w:0x9e:m -U efuse:w:0xfe:m
-
-dw: clean all
-	dwdebug device usbtiny,l main.elf,qr
-
-dwr: 
-	dwdebug device usbtiny,reset,qr
+FUSES      = -U lfuse:w:0xd2:m -U hfuse:w:0xde:m -U efuse:w:0xfe:m
 
 ######################################################################
 ######################################################################

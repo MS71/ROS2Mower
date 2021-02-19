@@ -20,8 +20,8 @@ static const char* TAG = "R2N";
 
 #include "driver/gpio.h"
 #include "driver/i2c.h"
-#include "driver/sdmmc_host.h"
-#include "driver/sdspi_host.h"
+//#include "driver/sdmmc_host.h"
+//#include "driver/sdspi_host.h"
 #include "driver/spi_master.h"
 #include "driver/uart.h"
 #include "esp32/rom/uart.h"
@@ -29,7 +29,6 @@ static const char* TAG = "R2N";
 #include "esp_err.h"
 #include "esp_event.h"
 #include "esp_log.h"
-#include "esp_pm.h"
 #include "esp_sleep.h"
 #include "esp_spiffs.h"
 #include "esp_system.h"
@@ -57,6 +56,12 @@ extern "C"
 #include <rcl/error_handling.h>
 #include <rcl/rcl.h>
 #include <rosidl_runtime_c/primitives_sequence_functions.h>
+#include <lifecycle_msgs/msg/transition_description.h>
+#include <lifecycle_msgs/msg/transition_event.h>
+#include <lifecycle_msgs/srv/change_state.h>
+#include <lifecycle_msgs/srv/get_state.h>
+#include <lifecycle_msgs/srv/get_available_states.h>
+#include <lifecycle_msgs/srv/get_available_transitions.h>
 #include <rclc_lifecycle/rclc_lifecycle.h>
 #include <sensor_msgs/msg/imu.h>
 #include <sensor_msgs/msg/joy.h>
@@ -238,7 +243,7 @@ void timer_callback(rcl_timer_t* timer, int64_t last_call_time)
                 nav_msgs__msg__Odometry msg = pData->msg_odom_tf;
                 pData->msg_odom_tf_valid = false;
                 i2c_release_data();
-                //RCSOFTCHECK(rcl_publish(&r2n_md.pub.pub_odom_tf, &msg, NULL));
+                RCSOFTCHECK(rcl_publish(&r2n_md.pub.pub_odom_tf, &msg, NULL));
             }
             else
             {
@@ -288,25 +293,28 @@ void timer_callback(rcl_timer_t* timer, int64_t last_call_time)
             }
         }
 
-        for(int i = 0; i < I2CROS2SENSORDATA_NUM_RANGE; i++)
+#ifdef CONFIG_ROS2NODE_HW_ROS2ZUMO
+        pData = i2c_lock_data();
+        if(pData != NULL)
         {
-            pData = i2c_lock_data();
-            if(pData != NULL)
+            for(int i = 0; i < I2CROS2SENSORDATA_NUM_RANGE; i++)
             {
                 if(pData->msg_range_valid[i] == true)
                 {
                     sensor_msgs__msg__Range msg = pData->msg_range[i];
                     pData->msg_range_valid[i] = false;
-                    i2c_release_data();
-                    //ESP_LOGI(TAG, "i2c_lidar_handle %d range_mm=%f", i, msg.range);
+                    //ESP_LOGI(TAG, "pub_range %d range_mm=%f", i, msg.range);
                     RCSOFTCHECK(rcl_publish(&r2n_md.pub.pub_range[i], &msg, NULL));
                 }
-                else
-                {
-                    i2c_release_data();
-                }
             }
+            pData->msg_range_trigger = 1;
+            i2c_release_data();
         }
+        else
+        {
+            i2c_release_data();
+        }
+#endif
 
         // WIFI
         {
@@ -381,11 +389,6 @@ static void r2n_task(void* param)
     rcl_node_t node = rcl_get_zero_initialized_node();
     RCCHECK(rclc_node_init_default(&node, ROS2_NODENAME, "", &support));
 
-    // create timer,
-    rcl_timer_t timer = rcl_get_zero_initialized_timer();
-    const unsigned int timer_timeout = 100;
-    RCCHECK(rclc_timer_init_default(&timer, &support, RCL_MS_TO_NS(timer_timeout), timer_callback));
-
 #if 0
     // rcl state machine
     rcl_lifecycle_state_machine_t state_machine =
@@ -400,22 +403,31 @@ static void r2n_task(void* param)
       &allocator);
   
     // register callbacks
-    //rclc_lifecycle_register_on_configure(&my_lifecycle_node, &my_on_configure);
+    rclc_lifecycle_register_on_configure(&my_lifecycle_node, &my_on_configure);
 #endif
+
+    // create timer,
+    rcl_timer_t timer = rcl_get_zero_initialized_timer();
+    const unsigned int timer_timeout = 100;
+    RCCHECK(rclc_timer_init_default(&timer, &support, RCL_MS_TO_NS(timer_timeout), timer_callback));
   
     // create publisher
     RCCHECK(rclc_publisher_init_default(&r2n_md.pub.pub_wifi_rssi, &node,
         ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int8), ROS2_NODENAME "/wifi_rssi"));
         
     RCCHECK(rclc_publisher_init_default(
-        &r2n_md.pub.pub_ubat, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32), ROS2_NODENAME "/ubat"));
+        &r2n_md.pub.pub_ubat, &node, 
+        ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32), ROS2_NODENAME "/ubat"));
 #if 0        
     RCCHECK(rclc_publisher_init_default(
-        &r2n_md.pub.pub_iout, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32), ROS2_NODENAME "/iout"));
+        &r2n_md.pub.pub_iout, &node, 
+        ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32), ROS2_NODENAME "/iout"));
     RCCHECK(rclc_publisher_init_default(
-        &r2n_md.pub.pub_isolar, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32), ROS2_NODENAME "/isolar"));
+        &r2n_md.pub.pub_isolar, &node, 
+        ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32), ROS2_NODENAME "/isolar"));
     RCCHECK(rclc_publisher_init_default(
-        &r2n_md.pub.pub_icharge, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32), ROS2_NODENAME "/icharge"));
+        &r2n_md.pub.pub_icharge, &node, 
+        ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32), ROS2_NODENAME "/icharge"));
 #endif
 
 
@@ -433,7 +445,8 @@ static void r2n_task(void* param)
 #endif
 
     RCCHECK(rclc_publisher_init_default(
-        &r2n_md.pub.pub_imu, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs, msg, Imu), ROS2_NODENAME "/imu"));
+        &r2n_md.pub.pub_imu, &node, 
+        ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs, msg, Imu), ROS2_NODENAME "/imu"));
 
 #ifdef CONFIG_ROS2NODE_HW_ROS2ZUMO
     for(int i = 0; i < I2CROS2SENSORDATA_NUM_RANGE; i++)
@@ -441,7 +454,8 @@ static void r2n_task(void* param)
         char tmpstr[64];
         sprintf(tmpstr, ROS2_NODENAME "/range_%d", i);
         RCCHECK(rclc_publisher_init_default(
-            &r2n_md.pub.pub_range[i], &node, ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs, msg, Range), tmpstr));
+            &r2n_md.pub.pub_range[i], &node, 
+            ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs, msg, Range), tmpstr));
     }
 #endif
 
@@ -536,12 +550,13 @@ uint8_t ros2node_connected()
 #if 0
     if( rcl_publisher_is_valid(&r2n_md.pub.pub_ubat) )
     {
-#if 0        
+#if 1        
         size_t subscription_count = 0;
         rcl_ret_t ret = 
             rcl_publisher_get_subscription_count(&r2n_md.pub.pub_ubat, &subscription_count);
         if( ret == RCL_RET_OK )
         {
+    ESP_LOGI(TAG, "ros2node_connected() %d",subscription_count);
             if( subscription_count != 0 )
             {
                 return 1;

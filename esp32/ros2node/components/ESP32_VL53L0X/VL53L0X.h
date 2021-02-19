@@ -209,13 +209,11 @@ public:
   bool readData(uint16_t *pRangeMilliMeter) {
     VL53L0X_Error status;
     
-    #if 0
     uint8_t MeasurementDataReady = 0;
     status = VL53L0X_GetMeasurementDataReady(&vl53l0x_dev,&MeasurementDataReady);
     if (status != VL53L0X_ERROR_NONE || MeasurementDataReady == 0 ) {
       return false;
     }
-    #endif
 
     // get data
     VL53L0X_RangingMeasurementData_t MeasurementData;
@@ -224,13 +222,18 @@ public:
       print_pal_error(status, "VL53L0X_GetRangingMeasurementData");
       return false;
     }
-    *pRangeMilliMeter = MeasurementData.RangeMilliMeter;
-    if (MeasurementData.RangeStatus != 0)
-      return false;
+    
     // clear interrupt
     VL53L0X_ClearInterruptMask(&vl53l0x_dev, 0);
     if (status != VL53L0X_ERROR_NONE)
       return false;
+    
+    *pRangeMilliMeter = MeasurementData.RangeMilliMeter;
+    if (MeasurementData.RangeStatus != 0)
+    {
+      *pRangeMilliMeter = 9999;
+    }
+    
     return true;
   }
 

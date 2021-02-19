@@ -37,6 +37,7 @@
 #define TWI_MEM_SHDWNREL   (0x14)
 #define TWI_MEM_PWRUPREL   (0x16)
 #define TWI_MEM_STAYONUBat (0x18)
+#define TWI_MEM_REBOOT     (0x1A)
 
 #define TWI_MEM_U1        (0x20)
 #define TWI_MEM_U2        (0x22)

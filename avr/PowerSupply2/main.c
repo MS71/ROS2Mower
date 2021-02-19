@@ -1,6 +1,7 @@
 #include <avr/eeprom.h>
 #include <avr/interrupt.h>
 #include <avr/io.h>
+#include <util/delay.h>
 #include <avr/pgmspace.h>
 #include <avr/sleep.h>
 #include <avr/wdt.h>
@@ -19,6 +20,7 @@ uint8_t u8TWIReg = 0;
 
 uint8_t pm_shdwn = 0;
 uint8_t pm_pwrup = 0;
+uint8_t pm_forcereset = 0;
 
 uint32_t pm_rtc = 0;
 
@@ -98,9 +100,11 @@ ISR(WDT_vect)
 
     if(digitalRead(PIN_ON) != 0) {
         // on
-        v = (u8TWIMem[TWI_MEM_SHDWNCNT + 0] | (u8TWIMem[TWI_MEM_SHDWNCNT + 1] << 8));
+        v = (u8TWIMem[TWI_MEM_SHDWNCNT + 0] | ((uint16_t)u8TWIMem[TWI_MEM_SHDWNCNT + 1] << 8));
         if(v > 0) {
-            if(ubat_mv < ((u8TWIMem[TWI_MEM_STAYONUBat + 1] << 8) | u8TWIMem[TWI_MEM_STAYONUBat + 0])) {
+            int32_t ustayon = (((uint16_t)u8TWIMem[TWI_MEM_STAYONUBat + 1] << 8) | u8TWIMem[TWI_MEM_STAYONUBat + 0]);
+            //ustayon = 99999;
+            if(ubat_mv < ustayon) {
                 v--;
             }
 
@@ -113,11 +117,25 @@ ISR(WDT_vect)
     }
 
     {
-        v = (u8TWIMem[TWI_MEM_WDT + 0] | (u8TWIMem[TWI_MEM_WDT + 1] << 8));
+        v = (u8TWIMem[TWI_MEM_REBOOT + 0] | ((uint16_t)u8TWIMem[TWI_MEM_REBOOT + 1] << 8));
         if(v > 0) {
+            v--;
             if(v == 0) {
                 /* reset */
-                MCUSR |= (1 << WDRF);
+                pm_forcereset = 1;
+            }
+            u8TWIMem[TWI_MEM_REBOOT + 0] = (v >> 0) & 0xff;
+            u8TWIMem[TWI_MEM_REBOOT + 1] = (v >> 8) & 0xff;
+        }
+    }
+
+    {
+        v = (u8TWIMem[TWI_MEM_WDT + 0] | ((uint16_t)u8TWIMem[TWI_MEM_WDT + 1] << 8));
+        if(v > 0) {
+            v--;
+            if(v == 0) {
+                /* reset */
+                pm_forcereset = 1;
             }
             u8TWIMem[TWI_MEM_WDT + 0] = (v >> 0) & 0xff;
             u8TWIMem[TWI_MEM_WDT + 1] = (v >> 8) & 0xff;
@@ -126,7 +144,7 @@ ISR(WDT_vect)
 
     if(digitalRead(PIN_ON) == 0) {
         // off
-        v = (u8TWIMem[TWI_MEM_PWRUPCNT + 0] | (u8TWIMem[TWI_MEM_PWRUPCNT + 1] << 8));
+        v = (u8TWIMem[TWI_MEM_PWRUPCNT + 0] | ((uint16_t)u8TWIMem[TWI_MEM_PWRUPCNT + 1] << 8));
         if(v > 0) {
             v--;
             if(v == 0) {
@@ -139,19 +157,28 @@ ISR(WDT_vect)
 
     pm_rtc++;
 
-    v = (u8TWIMem[TWI_MEM_RTC + 0] | (u8TWIMem[TWI_MEM_RTC + 1] << 8) | ((uint32_t)u8TWIMem[TWI_MEM_RTC + 2] << 16) |
+    v = ((uint32_t)u8TWIMem[TWI_MEM_RTC + 0] | ((uint32_t)u8TWIMem[TWI_MEM_RTC + 1] << 8) | ((uint32_t)u8TWIMem[TWI_MEM_RTC + 2] << 16) |
         ((uint32_t)u8TWIMem[TWI_MEM_RTC + 3] << 24));
     v++;
     u8TWIMem[TWI_MEM_RTC + 0] = (pm_rtc >> 0) & 0xff;
     u8TWIMem[TWI_MEM_RTC + 1] = (pm_rtc >> 8) & 0xff;
     u8TWIMem[TWI_MEM_RTC + 2] = (pm_rtc >> 16) & 0xff;
     u8TWIMem[TWI_MEM_RTC + 3] = (pm_rtc >> 24) & 0xff;
+    
+    if( pm_forcereset == 0 )
+    {
+        /* ReEnable the watchdog interrupt,
+         * as this gets reset when entering this ISR and automatically enables the WDE signal
+         * that resets the MCU the next time the  timer overflows */
+        WDTCSR |= (1<<WDIE);
+    }
 }
 
 // 0=16ms, 1=32ms,2=64ms,3=128ms,4=250ms,5=500ms
 // 6=1 sec,7=2 sec, 8=4 sec, 9= 8sec
 void setup_watchdog(int ii)
 {
+#if 0
     uint8_t bb;
     int ww;
     if(ii > 9)
@@ -169,6 +196,13 @@ void setup_watchdog(int ii)
     // set new watchdog timeout value
     WDTCSR = bb;
     WDTCSR |= _BV(WDIE);
+#else
+        // Reset the watchdog reset flag
+    wdt_reset();
+    wdt_enable(WDTO_1S);
+    // Enable interrupts instead of reset
+    WDTCSR |= (1 << WDIE);
+#endif
 }
 
 // set system into the sleep state
@@ -223,7 +257,7 @@ int16_t analogReadDiff(uint8_t adcch)
     volatile uint8_t low = ADCL;
     volatile uint8_t high = ADCH;
 
-    v = (high << 8) | low;
+    v = ((int32_t)high << 8) | low;
 
     v = v << 6;
     v = v / 64;
@@ -299,6 +333,9 @@ int main(void)
     u8TWIMem[TWI_MEM_STAYONUBat + 0] = ((99999) >> 0) & 0xff;
     u8TWIMem[TWI_MEM_STAYONUBat + 1] = (99999 >> 8) & 0xff;
 
+    u8TWIMem[TWI_MEM_REBOOT + 0] = (0 >> 0) & 0xff;
+    u8TWIMem[TWI_MEM_REBOOT + 1] = (0 >> 8) & 0xff;
+
     u8TWIMem[TWI_MEM_WDT + 0] = (0 >> 0) & 0xff;
     u8TWIMem[TWI_MEM_WDT + 1] = (0 >> 8) & 0xff;
 
@@ -316,11 +353,12 @@ int main(void)
 
     setup_watchdog(6); // approximately 1 seconds sleep
 
+    //pinMode(5, OUTPUT);
+
 #if 0
 while(1)
 {
     int p = 5;
-    pinMode(p, OUTPUT);
     digitalWrite(p, LOW); // let led blink
     digitalWrite(p, HIGH); // let led blink
         
@@ -329,6 +367,7 @@ while(1)
     pinMode(5, OUTPUT);
 #endif
 
+    //_delay_ms(1000);
     i2c_init();
     sei();
     

@@ -16,8 +16,8 @@
 
 #include "i2c.h"
 
+//#define MAX_PWM 50
 
-#define MOTOR_GEAR_N (18*7*23UL)
 #define MOTOR_RPS(_rps_) (int32_t)(((int32_t)_rps_) * MOTOR_GEAR_N)
 #define MOTOR_RPM(_rpm_) (int32_t)(MOTOR_RPS(_rpm_) / 60.0)
 
@@ -41,6 +41,7 @@
 #define PORT_PWMA	B
 #define BIT_PWMB	7
 #define PORT_PWMB	A
+#define MOTOR_GEAR_N (18*7*23UL)
 #endif
 
 #ifdef VARIANT_D_T841_L298_SE
@@ -60,6 +61,7 @@
 #define PORT_PWMA	A
 #define BIT_PWMB	2
 #define PORT_PWMB	A
+#define MOTOR_GEAR_N (18*7*23UL)
 #endif
 
 #ifdef VARIANT_D_T841_VNH2SP30_SE
@@ -71,10 +73,11 @@
 #define PORT_MA_B	B
 #define BIT_PWMA	1
 #define PORT_PWMA	A
+#define MOTOR_GEAR_N (18*7*23UL)
 #endif
 
 #ifdef VARIANT_C_T84_VNH2SP30_SE
-#define BIT_ENCA	1
+#define BIT_ENCA	7
 #define PORT_ENCA	A
 
 #define BIT_MA_A	2
@@ -85,6 +88,7 @@
 #define PORT_MA_EN  B
 #define BIT_PWMA	2
 #define PORT_PWMA	B
+#define MOTOR_GEAR_N (1UL)
 #endif
 
 
@@ -292,6 +296,7 @@ ISR (TIM1_OVF_vect)
  Wheel Encoder
  max. 5kHz => 200us
 ********************************************************************************/
+#if defined(BIT_ENCA) || defined(BIT_ENCB)
 ISR(PCINT0_vect)
 {
     uint16_t tcnt1 = TCNT1;
@@ -338,6 +343,7 @@ ISR(PCINT0_vect)
 #ifdef BIT_ENCA
 	if( flaga != 0 )
 	{
+        DEBUG_INT(8,1);
         uint32_t p = (((uint32_t)(motor_A.u16_t1_cnt+_t1ov)<<16) + (uint32_t)tcnt1 - (uint32_t)motor_A.u16_t1_tcnt1)/8;
         motor_A.u32_encperiod = (((uint32_t)motor_A.u32_encperiod*(motor_enc_tp-1)) + p)/motor_enc_tp;
         motor_A.u16_t1_cnt = 0;
@@ -345,7 +351,6 @@ ISR(PCINT0_vect)
         motor_A.i16_encoder += motor_A.i8_encoder_step;
         motor_A.i64_encoder += motor_A.i8_encoder_step;
         motor_A.u8_encoder_flag = 1;
-        DEBUG_INT(8,1);
         DEBUG_INT(8,0);
 	}
 #endif
@@ -353,6 +358,7 @@ ISR(PCINT0_vect)
 #ifdef BIT_ENCB
 	if( flagb != 0 )
 	{
+        DEBUG_INT(9,1);
         uint32_t p = (((uint32_t)(motor_B.u16_t1_cnt+_t1ov)<<16) + (uint32_t)tcnt1 - (uint32_t)motor_B.u16_t1_tcnt1)/8;
         motor_B.u32_encperiod = (((uint32_t)motor_B.u32_encperiod*(motor_enc_tp-1)) + p)/motor_enc_tp;
         motor_B.u16_t1_cnt = 0;
@@ -360,7 +366,6 @@ ISR(PCINT0_vect)
         motor_B.i16_encoder += motor_B.i8_encoder_step;
         motor_B.i64_encoder += motor_B.i8_encoder_step;
         motor_B.u8_encoder_flag = 1;
-        DEBUG_INT(9,1);
         DEBUG_INT(9,0);
 	}
 #endif
@@ -368,11 +373,18 @@ ISR(PCINT0_vect)
 	DEBUG_INT(5,0);
 	DEBUG_INT(6,0);
 }
+#endif
 
 #ifdef MODE_A
 static void setModeA(uint8_t mode,uint8_t pwm)
 {
 	  MODE_A(mode);
+#ifdef MAX_PWM
+      if(pwm > MAX_PWM)
+      {
+          pwm = MAX_PWM;
+      }
+#endif
 	  OCR0A = pwm;
 }
 #endif
@@ -381,6 +393,12 @@ static void setModeA(uint8_t mode,uint8_t pwm)
 static void setModeB(uint8_t mode,uint8_t pwm)
 {
 	  MODE_B(mode);
+#ifdef MAX_PWM
+      if(pwm > MAX_PWM)
+      {
+          pwm = MAX_PWM;
+      }
+#endif      
 	  OCR0B = pwm;
 }
 #endif
@@ -982,8 +1000,11 @@ int main(void)
     REG(PORT,PORT_ENCB) |= (1<<BIT_ENCB); // enable pullup
     PCMSK0 |= (1<<BIT_ENCB);
 #endif
+
+#if defined(BIT_ENCA) || defined(BIT_ENCB)
   GIMSK  = (1<<PCIE0);
   GIFR |= (1<<PCIF0);
+#endif
 
 #ifdef BIT_MA_EN
   REG(DDR,PORT_MA_EN) &= ~(1<<BIT_MA_EN);
@@ -1072,11 +1093,16 @@ int main(void)
 
 #if 0
 	motor_mode = MODE_PID;
-	motor_A.pid_setPoint = MOTOR_RPM(3);
-	motor_B.pid_setPoint = MOTOR_RPM(-3);
+	motor_A.pid_setPoint = MOTOR_RPM(-10);
+	motor_B.pid_setPoint = MOTOR_RPM(+10);
 #endif
 
-	main_loop_int_pulse = 0;
+#if 0
+	motor_mode = MODE_PID;
+	motor_A.pid_setPoint = MOTOR_RPS(-5);
+#endif
+
+	main_loop_int_pulse = 6;
 
 #if 0
     while(1)

@@ -42,7 +42,9 @@
 #include "esp_log.h"
 #include "esp_pm.h"
 #include "esp_sleep.h"
+#ifdef CONFIG_ENABLE_SPIFS
 #include "esp_spiffs.h"
+#endif
 #include "esp_system.h"
 #include "esp_vfs.h"
 #include "esp_vfs_dev.h"
@@ -106,6 +108,7 @@ const int CONNECTED_BIT = BIT0;
 esp_ip4_addr_t s_ip_addr = {};
 uint8_t s_ip_addr_changed = 1;
 
+#ifdef CONFIG_PARTITION_TABLE_CUSTOM
 /**
  * @brief 
  * @param param
@@ -116,6 +119,7 @@ static void ota_server_task(void* param)
     ota_server_start();
     vTaskDelete(NULL);
 }
+#endif
 
 #ifdef CONFIG_ENABLE_SDCARD
 // This example can use SDMMC and SPI peripherals to communicate with SD card.
@@ -403,12 +407,14 @@ void check_wifi_config()
  */
 void beep(int onoff)
 {
+#ifdef ENABLE_BUZZER
 #ifdef BUZZER_PIN
     gpio_num_t gpio = (gpio_num_t)BUZZER_PIN;
     gpio_reset_pin(gpio);
     /* Set the GPIO as a push/pull output */
     gpio_set_direction(gpio, GPIO_MODE_OUTPUT);
     gpio_set_level(gpio, (onoff==0)?0:1);
+#endif
 #endif
 }
 
@@ -448,6 +454,7 @@ void app_main(void)
 
     check_wifi_config();
 
+#ifdef CONFIG_ENABLE_SPIFS
     esp_vfs_spiffs_conf_t conf = {
         .base_path = "/spiffs", .partition_label = NULL, .max_files = 5, .format_if_mount_failed = true
     };
@@ -473,6 +480,7 @@ void app_main(void)
     } else {
 	ESP_LOGI(TAG, "Partition size: total: %d, used: %d", total, used);
     }
+#endif
 
 #if 0
     gpio_num_t gpio = (gpio_num_t)13;
@@ -490,8 +498,14 @@ void app_main(void)
     }
 #endif
 
+#ifdef CONFIG_ENABLE_I2C
+    i2c_handler_init();
+#endif
+
     initialise_wifi();
+#ifdef CONFIG_PARTITION_TABLE_CUSTOM
     xTaskCreate(&ota_server_task, "ota_server_task", 4096, NULL, 5, NULL);
+#endif
 
     // my_deflog = esp_log_set_vprintf(my_log);
     //ESP_LOGW(TAG, "ready");
@@ -512,8 +526,6 @@ void app_main(void)
 #ifdef CONFIG_ENABLE_ROS2
     ros2node_init();
 #endif
-
-    i2c_handler_init();
 
 #ifdef CONFIG_ENABLE_GPS
     gps_init();
@@ -551,8 +563,8 @@ void app_main(void)
 
     beep(0);
     
-    ESP_LOGI(TAG, "sleep 5 seconds ...");
-    vTaskDelay(5000 / portTICK_PERIOD_MS);
+    ESP_LOGI(TAG, "sleep 3 seconds ...");
+    vTaskDelay(3000 / portTICK_PERIOD_MS);
 
     ESP_LOGI(TAG, "starting console ...");
     console();
@@ -635,13 +647,17 @@ static void initialise_wifi(void)
     wifi_config_t wifi_config = {};
     strcpy((char*)wifi_config.sta.ssid, my_wifi_ssid);
     strcpy((char*)wifi_config.sta.password, my_wifi_psk);
+#ifdef CONFIG_PM_ENABLE
     wifi_config.sta.listen_interval = 10;
+#endif
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
     ESP_ERROR_CHECK(esp_wifi_start());
     tcpip_adapter_set_hostname(TCPIP_ADAPTER_IF_STA, "ros2mower");
-    ESP_ERROR_CHECK(esp_wifi_set_ps(WIFI_PS_NONE));
+#ifdef CONFIG_PM_ENABLE
+    ESP_ERROR_CHECK(esp_wifi_set_ps(WIFI_PS_MAX_MODEM));
+#endif
     ESP_LOGI(TAG, "Connecting to \"%s\"", wifi_config.sta.ssid);
     xEventGroupWaitBits(s_wifi_event_group, CONNECTED_BIT, false, true, portMAX_DELAY);
     ESP_LOGI(TAG, "Connected");

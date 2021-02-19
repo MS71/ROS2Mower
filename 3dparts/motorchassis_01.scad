@@ -1,5 +1,5 @@
-show_motor=0;
-show_mirror=0;
+show_motor=1;
+show_mirror=1;
 show_motor_driver_A=0;
 show_motor_driver_B=0;
 show_bat_monitor=0;

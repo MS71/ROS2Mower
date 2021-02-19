@@ -17,7 +17,11 @@ endchoice
 config ENABLE_WEBUI
 	bool "Enable Web UI"
 	default y
-    
+
+config ENABLE_SPIFS
+	bool "Enable SPI File System"
+	default n
+
 config ENABLE_ROS2
 	bool "Enable ROS2 Support"
 	default y
@@ -25,6 +29,10 @@ config ENABLE_ROS2
 config ENABLE_SDCARD
 	bool "Enable SDCard Support"
 	default y
+
+config ENABLE_BUZZER
+	bool "Enable Buzzer"
+	default n
 
 
 config ENABLE_CAMERA
@@ -49,6 +57,9 @@ if ENABLE_I2C
     config ENABLE_I2C_OLED
         bool "Enable I2C OLED"
         default y
+    config ENABLE_I2C_OLED_SH1106
+        bool "Enable I2C OLED SH1106"
+        default n
     config ENABLE_I2C_BNO055
         bool "Enable I2C BNO055"
         default y

@@ -106,15 +106,17 @@
 #define I2C_BUS_SCL 12
 #define I2C_BUS_INT 4
 
+#define ROS2_NODENAME "ros2s2"
+
 #endif /* CONFIG_ROS2NODE_HW_S2 */
 /***********************************************************
  */
  
-#define I2C_VL53LXY_ADDR 0x70
+#define I2C_VL53LXY_ADDR 0x50
 
 #define I2C_BNO055_ADDR 0x28
 
-#define I2C_TIMEOUT_MS 5
+#define I2C_TIMEOUT_MS 10
 #define I2C_BUS_CLOCK       400000
 
 #ifdef CONFIG_ENABLE_I2C_OLED

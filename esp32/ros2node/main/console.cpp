@@ -46,6 +46,9 @@ static vprintf_like_t con_deflog = NULL;
 static char con_log_linebuf[1024];
 static bool shutdown_active = false;
 static bool con_log_on = true;
+#ifdef CONFIG_PM_ENABLE
+static esp_pm_lock_handle_t con_pmlock;
+#endif
 
 /**
  * @brief 
@@ -105,7 +108,10 @@ void console_try_remote()
         nvs_get_str(my_handle, "host", host_name, &host_name_size);
         nvs_get_i32(my_handle, "port", &host_port);
         nvs_close(my_handle);
+        
         if(strlen(host_name) != 0 && host_port != 0) {
+            ESP_LOGW(TAG, "console_try_remote %s %d ...", host_name, host_port);
+
             struct sockaddr_in destAddr;
             destAddr.sin_addr.s_addr = inet_addr(host_name);
             destAddr.sin_family = AF_INET;
@@ -121,9 +127,15 @@ void console_try_remote()
 
             con_printf("%d\n",err);
 
-            if(err != -1) {
+            if(err != -1) 
+            {
+                ESP_LOGW(TAG, "console_try_remote %s %d ... connected", host_name, host_port);
                 con_sock = sock;
                 return;
+            }
+            else
+            {
+                ESP_LOGW(TAG, "console_try_remote %s %d ... failed", host_name, host_port);
             }
 
             shutdown(sock, 0);
@@ -242,6 +254,11 @@ static void con_handle()
                 con_printf("* ros_remote_set          # set the ip and port for the ros host\n");
                 con_printf("* ros_remote_get          # get ip and port for the ros host\n");
                 con_printf("* spifs_info              # show some SPIFS information\n");
+#ifdef CONFIG_PM_ENABLE
+#error 123
+                con_printf("* pmlock                  # lock the power managment\n");
+                con_printf("* pmrel                   # release the power managment\n");
+#endif
             }
             else if(strcasecmp("restart",rx_buffer)==0 )
             {
@@ -263,7 +280,19 @@ static void con_handle()
                 con_printf("rebooting ...\n");
             }
 #endif
-            else if(strcasecmp("test",rx_buffer)==0 )
+#ifdef CONFIG_PM_ENABLE
+            else if(strcasecmp("pmrel", rx_buffer) == 0)
+            {
+                con_printf("pm release ...\n");
+                esp_pm_lock_release(con_pmlock);
+            }
+            else if(strcasecmp("pmlock", rx_buffer) == 0)
+            {
+                con_printf("pm acquire ...\n");
+                esp_pm_lock_acquire(con_pmlock);
+            }
+#endif
+            else if(strcasecmp("test", rx_buffer) == 0)
             {
                 i2cnode_init_motor();
             }
@@ -590,6 +619,7 @@ void console()
     if (con_sock != -1) {
         con_handle();
     }
+    
     
     if (addr_family == AF_INET) {
         struct sockaddr_in *dest_addr_ip4 = (struct sockaddr_in *)&dest_addr;

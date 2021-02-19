@@ -43,9 +43,9 @@
 #							o	T0CC0	o	ADC3	-	-	-	ICP1	PCINT8	o	o	-
 
 #VARIANT= VARIANT_A_T84_L298_SE
-#VARIANT= VARIANT_D_T841_L298_SE
-#VARIANT= VARIANT_F_T841_VNH2SP30_SE
-VARIANT= VARIANT_C_T84_VNH2SP30_SE
+VARIANT= VARIANT_D_T841_L298_SE
+##VARIANT= VARIANT_F_T841_VNH2SP30_SE
+#VARIANT= VARIANT_C_T84_VNH2SP30_SE
 
 ifeq ($(VARIANT),VARIANT_A_T84_L298_SE)
 DEVICE     = attiny84
@@ -87,8 +87,8 @@ CFLAGS += -DDEBUGUART
 endif
 
 #http://www.engbedded.com/fusecalc/
-FUSES      = -U lfuse:w:0xd2:m -U hfuse:w:0xde:m -U efuse:w:0xfe:m
-#FUSES      = -U lfuse:w:0xd2:m -U hfuse:w:0x9e:m -U efuse:w:0xfe:m
+#FUSES      = -U lfuse:w:0xd2:m -U hfuse:w:0xde:m -U efuse:w:0xfe:m
+FUSES      = -U lfuse:w:0xd2:m -U hfuse:w:0x9e:m -U efuse:w:0xfe:m
 
 dw: clean all
 	dwdebug device usbtiny,l main.elf,qr

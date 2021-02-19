@@ -28,7 +28,7 @@ void i2c_setpin_boot(int level);
 #ifdef CONFIG_ENABLE_ROS2
 #include <std_msgs/msg/float32.h>
 #include <sensor_msgs/msg/imu.h>
-#undef I2CROS2SENSORDATA_USE_NAV_MSG_ODOMETRY
+#define I2CROS2SENSORDATA_USE_NAV_MSG_ODOMETRY
 #ifdef I2CROS2SENSORDATA_USE_NAV_MSG_ODOMETRY    
 #include <nav_msgs/msg/odometry.h>
 #endif
@@ -66,7 +66,8 @@ typedef struct
     bool                                    msg_tf_valid;
 #endif
     // range msg
-    #define I2CROS2SENSORDATA_NUM_RANGE 12
+#define I2CROS2SENSORDATA_NUM_RANGE 12
+    uint8_t                                 msg_range_trigger;
     uint32_t                                msg_range_valid[I2CROS2SENSORDATA_NUM_RANGE];
     sensor_msgs__msg__Range                 msg_range[I2CROS2SENSORDATA_NUM_RANGE];    
     

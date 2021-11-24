@@ -76,6 +76,8 @@ main.elf: $(OBJECTS)
 main.hex: main.elf
 	rm -f main.hex
 	avr-objcopy -j .text -j .data -O ihex main.elf main.hex
+	avr-objcopy -j .text -j .data -O binary main.elf main.bin
+	xxd  -i -a main.bin main_bin.inc
 # If you have an EEPROM section, you must also create a hex file for the
 # EEPROM and add it to the "flash" target.
 

@@ -25693,6 +25693,8 @@ BF959 corrected 2008.03.06&lt;br&gt;</description>
 <part name="P+11" library="supply1" library_urn="urn:adsk.eagle:library:371" deviceset="VCC" device=""/>
 <part name="P+12" library="supply1" library_urn="urn:adsk.eagle:library:371" deviceset="VCC" device=""/>
 <part name="P+13" library="supply1" library_urn="urn:adsk.eagle:library:371" deviceset="VCC" device=""/>
+<part name="R22" library="rcl" library_urn="urn:adsk.eagle:library:334" deviceset="R-EU_" device="R0805" package3d_urn="urn:adsk.eagle:package:23553/2" value="10k"/>
+<part name="P+26" library="supply1" library_urn="urn:adsk.eagle:library:371" deviceset="VCC" device=""/>
 </parts>
 <sheets>
 <sheet>
@@ -26354,6 +26356,13 @@ BF959 corrected 2008.03.06&lt;br&gt;</description>
 </instance>
 <instance part="P+13" gate="VCC" x="58.42" y="114.3" smashed="yes" rot="R90">
 <attribute name="VALUE" x="60.96" y="111.76" size="1.778" layer="96" rot="R180"/>
+</instance>
+<instance part="R22" gate="G$1" x="22.86" y="63.5" smashed="yes" rot="MR180">
+<attribute name="NAME" x="19.05" y="62.0014" size="1.778" layer="95" rot="MR180"/>
+<attribute name="VALUE" x="19.05" y="66.802" size="1.778" layer="96" rot="MR180"/>
+</instance>
+<instance part="P+26" gate="VCC" x="30.48" y="63.5" smashed="yes" rot="R270">
+<attribute name="VALUE" x="27.94" y="66.04" size="1.778" layer="96"/>
 </instance>
 </instances>
 <busses>
@@ -27088,6 +27097,10 @@ BF959 corrected 2008.03.06&lt;br&gt;</description>
 <pinref part="R28" gate="G$1" pin="1"/>
 <pinref part="P+13" gate="VCC" pin="VCC"/>
 </segment>
+<segment>
+<pinref part="R22" gate="G$1" pin="2"/>
+<pinref part="P+26" gate="VCC" pin="VCC"/>
+</segment>
 </net>
 <net name="N$20" class="0">
 <segment>
@@ -27172,6 +27185,9 @@ BF959 corrected 2008.03.06&lt;br&gt;</description>
 <pinref part="GPS" gate="-1" pin="S"/>
 <wire x1="20.32" y1="58.42" x2="17.78" y2="58.42" width="0.1524" layer="91"/>
 <label x="20.32" y="58.42" size="1.778" layer="95" xref="yes"/>
+<pinref part="R22" gate="G$1" pin="1"/>
+<wire x1="17.78" y1="63.5" x2="17.78" y2="58.42" width="0.1524" layer="91"/>
+<junction x="17.78" y="58.42"/>
 </segment>
 <segment>
 <pinref part="IC1" gate="G$1" pin="IO18"/>

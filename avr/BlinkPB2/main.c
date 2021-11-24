@@ -1,15 +1,15 @@
-#include <avr/io.h>
 #include <avr/interrupt.h>
-#include <avr/sleep.h>
-#include <util/delay.h>
-#include <stdarg.h>
+#include <avr/io.h>
 #include <avr/pgmspace.h>
+#include <avr/sleep.h>
 #include <avr/wdt.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <stdbool.h>
 #include <stdarg.h>
+#include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <util/delay.h>
+#include <avr/wdt.h>
 
 #include "i2c.h"
 
@@ -21,9 +21,9 @@ void TIM0_65536us();
 
 static uint64_t get_time_us()
 {
-	volatile uint8_t tov0 = TIFR0&1;
-	volatile uint16_t tcnt0 = (tov0<<8) | TCNT0;
-	return u64_time_us + tcnt0;
+    volatile uint8_t tov0 = TIFR0 & 1;
+    volatile uint16_t tcnt0 = (tov0 << 8) | TCNT0;
+    return u64_time_us + tcnt0;
 }
 
 /*
@@ -31,40 +31,40 @@ static uint64_t get_time_us()
  */
 void TIM0_65536us()
 {
-	u8Tick = 1;
+    u8Tick = 1;
 }
 
 /*
  * timer0 overflow
  */
 volatile uint8_t tim0_divcnt = 0;
-ISR (TIM0_OVF_vect)
+ISR(TIM0_OVF_vect)
 {
-	//sei();	// allow other IRQs e.g. i2c
+    // sei();	// allow other IRQs e.g. i2c
 
-  // Freg = F_CPU/(8*256) = 256us ~ 3906.25Hz
-  u64_time_us += (1000000UL*8*256)/F_CPU;
-  tim0_divcnt++;
+    // Freg = F_CPU/(8*256) = 256us ~ 3906.25Hz
+    u64_time_us += (1000000UL * 8 * 256) / F_CPU;
+    tim0_divcnt++;
 
-  if( (tim0_divcnt) == 0 )
-  {
-		TIM0_65536us();
-  }
+    if((tim0_divcnt) == 0)
+    {
+        TIM0_65536us();
+    }
 }
 
 /*
  * i2c_TwiRxHandler
  */
-void i2c_TwiRxHandler( uint16_t idx, uint8_t data )
+void i2c_TwiRxHandler(uint16_t idx, uint8_t data)
 {
 }
 
 /*
  * i2c_TwiTxHandler
  */
-uint8_t i2c_TwiTxHandler( uint16_t idx )
+uint8_t i2c_TwiTxHandler(uint16_t idx)
 {
-	return 0;
+    return 0;
 }
 
 /*
@@ -72,53 +72,72 @@ uint8_t i2c_TwiTxHandler( uint16_t idx )
  */
 int main(void)
 {
-	DDRB |= (1<<PB2);
-	PORTB &= ~(1<<PB2);
+    cli();
+    MCUSR = 0;
+    wdt_disable(); 
 
-	// fast PWM mode
-  TCCR0A = (0 << COM0A1) | (0 << COM0A0) |
-		 (0 << COM0B1) | (0 << COM0B0) |
-		 (1 << WGM01) | (1 << WGM00);
+    DDRB |= (1 << PB2);
+    PORTB &= ~(1 << PB2);
 
-	// fast PWM mode
-  TCCR0B = (0 << CS02) | (1 << CS01) | (0 << CS00);   // clock source = CLK/8, start PWM
+#if 0
+    while(1)
+    {
+        PORTB &= ~(1 << PB2);
+        __asm volatile("nop");
+        __asm volatile("nop");
+        __asm volatile("nop");
+        __asm volatile("nop");
+        __asm volatile("nop");
+        PORTB |= (1 << PB2);
+        __asm volatile("nop");
+        __asm volatile("nop");
+        __asm volatile("nop");
+        __asm volatile("nop");
+        __asm volatile("nop");
+    }
+#endif
 
-  // Overflow Interrupt erlauben
-  TIMSK0 |= (1<<TOIE0);
+    // fast PWM mode
+    TCCR0A = (0 << COM0A1) | (0 << COM0A0) | (0 << COM0B1) | (0 << COM0B0) | (1 << WGM01) | (1 << WGM00);
 
-  //i2c_init();
+    // fast PWM mode
+    TCCR0B = (0 << CS02) | (1 << CS01) | (0 << CS00); // clock source = CLK/8, start PWM
 
-  sei();
-	//wdt_enable(WDTO_1S);   // Watchdog auf 1 s stellen
+    // Overflow Interrupt erlauben
+    TIMSK0 |= (1 << TOIE0);
+
+    // i2c_init();
+
+    sei();
+    // wdt_enable(WDTO_1S);   // Watchdog auf 1 s stellen
 
     for(;;)
     {
-			static uint64_t _t = 0;
-			if( get_time_us() > _t )
-			{
-				_t = get_time_us() + 500000UL;
-				if( PORTB & (1<<PB2 ) )
-				{
-					PORTB &= ~(1<<PB2);
-				}
-				else
-				{
-					PORTB |= (1<<PB2);
-				}
-			}
+        static uint64_t _t = 0;
+        if(get_time_us() > _t)
+        {
+            if(PORTB & (1 << PB2))
+            {
+                PORTB &= ~(1 << PB2);
+                _t = get_time_us() + 100000UL;
+            }
+            else
+            {
+                PORTB |= (1 << PB2);
+                _t = get_time_us() + 100000UL;
+            }
+        }
 
+        if(i2c_idle() != 0)
+        {
+            // wdt_reset();
 
-			if( i2c_idle() != 0 )
-			{
-				//wdt_reset();
-
-				// sleep ...
-				//set_sleep_mode(SLEEP_MODE_IDLE);
-				//sleep_mode();
-			}
+            // sleep ...
+            // set_sleep_mode(SLEEP_MODE_IDLE);
+            // sleep_mode();
+        }
     }
-
-    return 0;  // the program executed successfully
+    return 0; // the program executed successfully
 }
 /*
  * EOF

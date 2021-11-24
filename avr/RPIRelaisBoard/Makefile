@@ -52,38 +52,15 @@ VARIANT= VARIANT_D_T841_L298_SE
 #FUSES      = -U lfuse:w:0xd2:m -U hfuse:w:0x9e:m -U efuse:w:0xfe:m
 T841_DW_FUSES      = -U lfuse:w:0xe2:m -U hfuse:w:0x9f:m -U efuse:w:0xff:m
 
-ifeq ($(VARIANT),VARIANT_A_T84_L298_SE)
 DEVICE     = attiny84
 TWI_ADDR   = 10
-endif
-
-ifeq ($(VARIANT),VARIANT_F_T841_VNH2SP30_SE)
-DEVICE     = attiny841
-TWI_ADDR   = 12
-endif
-
-ifeq ($(VARIANT),VARIANT_C_T84_VNH2SP30_SE)
-DEVICE     = attiny84
-TWI_ADDR   = 12
-endif
-
-ifeq ($(VARIANT),VARIANT_D_T841_VNH2SP30_SE)
-DEVICE     = attiny841
-TWI_ADDR   = 14
-FUSES      = $(T841_DW_FUSES)
-endif
-
-ifeq ($(VARIANT),VARIANT_D_T841_L298_SE)
-DEVICE     = attiny841
-TWI_ADDR   = 13
-endif
 
 CFLAGS += -D$(VARIANT)
 
 CLOCK      = 8000000
 PROGRAMMER = -c usbtiny
 #PROGRAMMER = -c stk500 -P /dev/ttyACM0
-OBJECTS    = main.o pid.o ../pid_autotuner/pidautotuner.o
+OBJECTS    = main.o 
 
 ifeq ($(DEVICE), attiny84)
 OBJECTS += ../lib/i2c.o
